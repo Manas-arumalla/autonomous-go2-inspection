@@ -1,0 +1,43 @@
+# ros_gz bridge for the CHAMP walking Go2 (Harmonic). CHAMP takes ROS /cmd_vel directly and
+# provides odom via its state-estimation + EKF, so we only bridge sensors + clock.
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
+# L1 LiDAR 3D cloud (mirrors real Go2 /utlidar/cloud_deskewed, ADR-007)
+- ros_topic_name: "/utlidar/cloud_deskewed"
+  gz_topic_name: "/utlidar/points"
+  ros_type_name: "sensor_msgs/msg/PointCloud2"
+  gz_type_name: "gz.msgs.PointCloudPacked"
+  direction: GZ_TO_ROS
+
+# IMU (CHAMP/EKF state estimation)
+- ros_topic_name: "/imu/data"
+  gz_topic_name: "/imu"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS
+
+# Accurate base odometry from gz OdometryPublisher (real-Go2 onboard-estimator equivalent).
+# Fused by footprint_to_odom_ekf (replaces the drifting CHAMP leg odom/raw).
+- ros_topic_name: "/odom_gz"
+  gz_topic_name: "/odom_gz"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS
+
+# Front HD camera (mirrors the real Go2 head camera) -> ROS /camera/image_raw for inspection/detection
+- ros_topic_name: "/camera/image_raw"
+  gz_topic_name: "/camera/image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# CameraInfo (intrinsics) — needed by the RViz "Camera" display + any rectification/detection node
+- ros_topic_name: "/camera/camera_info"
+  gz_topic_name: "/camera/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS

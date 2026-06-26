@@ -1,0 +1,88 @@
+controller_manager:
+  ros__parameters:
+    use_sim_time: True
+    update_rate: 250  # Hz
+
+    joint_states_controller:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    joint_group_effort_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+joint_group_effort_controller:
+  ros__parameters:
+    use_sim_time: True
+    joints:
+        - lf_hip_joint
+        - lf_upper_leg_joint
+        - lf_lower_leg_joint
+        - rf_hip_joint
+        - rf_upper_leg_joint
+        - rf_lower_leg_joint
+        - lh_hip_joint
+        - lh_upper_leg_joint
+        - lh_lower_leg_joint
+        - rh_hip_joint
+        - rh_upper_leg_joint
+        - rh_lower_leg_joint
+    # POSITION command interface (EE26/Harmonic): the effort+PID path (gains p=100, tuned for
+    # Gazebo Classic/ODE) oscillates on Harmonic's DART physics -> the dog twitches chaotically
+    # even holding a stand, then falls. gz_ros2_control applies a position command through gz's
+    # stable internal joint controller, so CHAMP's gait angles are tracked smoothly with no
+    # ROS-side PID to detune. Real-Go2 deployment is unaffected (there we send /cmd_vel to the
+    # onboard sport controller, never joint-level). See go2-sim/docs ADR-011.
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    open_loop_control: true
+    allow_integration_in_goal_trajectories: true
+    constraints:
+      stopped_velocity_tolerance: 0.0   # don't abort the gait stream on velocity tolerance
+      goal_time: 0.0                    # start immediately
+
+# joint_group_position_controller:
+#   ros__parameters:
+#     use_sim_time: True
+#     type: joint_trajectory_controller/JointTrajectoryController
+#     joints:
+#         - lf_hip_joint
+#         - lf_upper_leg_joint
+#         - lf_lower_leg_joint
+#         - rf_hip_joint
+#         - rf_upper_leg_joint
+#         - rf_lower_leg_joint
+#         - lh_hip_joint
+#         - lh_upper_leg_joint
+#         - lh_lower_leg_joint
+#         - rh_hip_joint
+#         - rh_upper_leg_joint
+#         - rh_lower_leg_joint 
+#     command_interfaces:
+#       - position
+#     state_interfaces:
+#       - position
+#       - velocity
+    
+#     # state_publish_rate: 25.0 # Defaults to 50
+#     # action_monitor_rate: 10.0 # Defaults to 20
+#     open_loop_control: true
+#     allow_integration_in_goal_trajectories: true
+#     constraints:
+#       stopped_velocity_tolerance: 0.01 # Defaults to 0.01
+#       goal_time: 0.0 # Defaults to 0.0 (start immediately)
+    # gains:
+    #     lf_hip_joint        : {p: 180, d: 0.9, i: 20}
+    #     lf_upper_leg_joint  : {p: 180, d: 0.9, i: 20}
+    #     lf_lower_leg_joint  : {p: 180, d: 0.9, i: 20}
+    #     rf_hip_joint        : {p: 180, d: 0.9, i: 20}
+    #     rf_upper_leg_joint  : {p: 180, d: 0.9, i: 20}
+    #     rf_lower_leg_joint  : {p: 180, d: 0.9, i: 20}
+    #     lh_hip_joint        : {p: 180, d: 0.9, i: 20}
+    #     lh_upper_leg_joint  : {p: 180, d: 0.9, i: 20}
+    #     lh_lower_leg_joint  : {p: 180, d: 0.9, i: 20}
+    #     rh_hip_joint        : {p: 180, d: 0.9, i: 20}
+    #     rh_upper_leg_joint  : {p: 180, d: 0.9, i: 20}
+    #     rh_lower_leg_joint  : {p: 180, d: 0.9, i: 20}
+

@@ -1,0 +1,11 @@
+# keep the build context lean
+**/build
+**/install
+**/log
+**/__pycache__
+**/*.pyc
+**/.git
+**/.pytest_cache
+# stripped viz assets (should already be gone, but never ship them)
+ros2_ws/src/go2_description/meshes
+ros2_ws/src/go2_description/dae

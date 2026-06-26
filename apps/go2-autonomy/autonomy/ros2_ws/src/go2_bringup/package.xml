@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>go2_bringup</name>
+  <version>0.1.0</version>
+  <description>Real-robot bringup (WendyOS port): robot_state_publisher + RTAB-Map + Nav2 + pointcloud-&gt;scan
+  on top of the go2-ros2-bridge contract (domain 30). No Gazebo/CHAMP/slam_toolbox.</description>
+  <maintainer email="manasreddyarumalla@gmail.com">team</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <!-- real-robot runtime deps (sim deps ros_gz_sim/ros_gz_bridge/slam_toolbox dropped for the port) -->
+  <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>pointcloud_to_laserscan</exec_depend>
+  <exec_depend>robot_localization</exec_depend>
+  <exec_depend>twist_mux</exec_depend>
+  <exec_depend>rtabmap_slam</exec_depend>
+  <exec_depend>octomap_server</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>v4l2_camera</exec_depend>
+  <exec_depend>nav2_map_server</exec_depend>
+  <exec_depend>go2_description</exec_depend>
+  <exec_depend>go2_exploration</exec_depend>
+  <exec_depend>go2_inspection</exec_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

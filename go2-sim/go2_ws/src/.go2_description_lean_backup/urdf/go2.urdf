@@ -1,0 +1,105 @@
+<?xml version="1.0"?>
+<!-- go2-sim Stage-1 description (lean): real Go2 trunk dimensions + built-in L1 LiDAR
+     + a velocity base (gz VelocityControl) + OdometryPublisher. Publishes the mirrored
+     real-Go2 topics (see ADR-007). Legs/meshes are added next as a cosmetic/kinematic
+     upgrade; the SLAM/nav pipeline only needs base_link, utlidar_lidar, odom. -->
+<robot name="go2">
+
+  <!-- ====================== links ====================== -->
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0 0 0"/>
+      <mass value="8.0"/>
+      <inertia ixx="0.05" iyy="0.12" izz="0.12" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+    <visual>
+      <geometry><box size="0.38 0.13 0.11"/></geometry>
+      <material name="go2_body"><color rgba="0.15 0.15 0.18 1"/></material>
+    </visual>
+    <collision>
+      <geometry><box size="0.38 0.13 0.11"/></geometry>
+    </collision>
+  </link>
+
+  <!-- L1 LiDAR frame: mounted at the front-top of the trunk, looking forward.
+       Frame name mirrors the real Go2 (utlidar_lidar). -->
+  <link name="utlidar_lidar">
+    <inertial><mass value="0.1"/><inertia ixx="1e-4" iyy="1e-4" izz="1e-4" ixy="0" ixz="0" iyz="0"/></inertial>
+    <visual><geometry><cylinder radius="0.03" length="0.04"/></geometry><material name="lidar"><color rgba="0.1 0.1 0.1 1"/></material></visual>
+  </link>
+  <joint name="lidar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="utlidar_lidar"/>
+    <origin xyz="0.20 0 0.10" rpy="0 0 0"/>
+  </joint>
+
+  <!-- imu frame (published later from a gz IMU sensor) -->
+  <link name="imu_link">
+    <inertial><mass value="0.01"/><inertia ixx="1e-6" iyy="1e-6" izz="1e-6" ixy="0" ixz="0" iyz="0"/></inertial>
+  </link>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/><child link="imu_link"/><origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ====================== gazebo (gz-sim) ====================== -->
+  <!-- Stage-1 velocity base is kinematic: disable gravity so the legless trunk floats at
+       standing height while VelocityControl drives x/y/yaw. Gravity + a real gait controller
+       return in Phase 2 (ADR-003). -->
+  <gazebo reference="base_link"><gravity>false</gravity></gazebo>
+
+  <!-- velocity base: drives base_link from /model/go2/cmd_vel (gz.msgs.Twist) [ADR-003] -->
+  <gazebo>
+    <plugin filename="gz-sim-velocity-control-system" name="gz::sim::systems::VelocityControl"/>
+  </gazebo>
+
+  <!-- wheel/robot odometry: publishes gz.msgs.Odometry + odom->base_link TF -->
+  <gazebo>
+    <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
+      <odom_frame>odom</odom_frame>
+      <robot_base_frame>base_link</robot_base_frame>
+      <dimensions>3</dimensions>
+      <odom_publish_frequency>50</odom_publish_frequency>
+      <tf_topic>/model/go2/pose</tf_topic>
+    </plugin>
+  </gazebo>
+
+  <!-- L1 LiDAR: gpu_lidar, front-biased FOV (limited like the real L1, ADR-007). -->
+  <gazebo reference="utlidar_lidar">
+    <sensor name="utlidar" type="gpu_lidar">
+      <pose>0 0 0 0 0 0</pose>
+      <topic>utlidar</topic>
+      <gz_frame_id>utlidar_lidar</gz_frame_id>
+      <update_rate>10</update_rate>
+      <always_on>true</always_on>
+      <visualize>true</visualize>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>360</samples>          <!-- lightened from 720: less GPU, lean for Orin -->
+            <resolution>1</resolution>
+            <min_angle>-2.356</min_angle>  <!-- -135 deg: front-biased L1 coverage -->
+            <max_angle> 2.356</max_angle>  <!-- +135 deg -->
+          </horizontal>
+          <vertical>
+            <samples>8</samples>            <!-- lightened from 16 -->
+            <resolution>1</resolution>
+            <min_angle>-0.52</min_angle>   <!-- -30 deg -->
+            <max_angle> 0.52</max_angle>   <!-- +30 deg -->
+          </vertical>
+        </scan>
+        <range><min>0.15</min><max>30.0</max><resolution>0.01</resolution></range>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <!-- IMU sensor on imu_link -->
+  <gazebo reference="imu_link">
+    <sensor name="imu" type="imu">
+      <topic>imu</topic>
+      <gz_frame_id>imu_link</gz_frame_id>
+      <update_rate>100</update_rate>
+      <always_on>true</always_on>
+    </sensor>
+  </gazebo>
+
+</robot>

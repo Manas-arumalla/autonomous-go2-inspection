@@ -1,0 +1,10 @@
+# ZoneTask -- one uniform request/response shape for EVERY mission-control service, so the future
+# WendyOS/MCP layer wraps them all with one client pattern. zone_id/read are ignored by services
+# that don't need them (e.g. start_exploration, get_status). result_json carries the structured
+# payload (gauges, paths, report, status) as a JSON string; message is human-readable.
+string zone_id        # target zone id; '' or 'all' = every candidate zone (where the service supports it)
+bool read             # inspect/run_mission: also run the Claude gauge reader (needs ANTHROPIC_API_KEY)
+---
+bool success
+string message
+string result_json

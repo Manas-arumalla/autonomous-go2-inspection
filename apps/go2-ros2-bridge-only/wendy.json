@@ -1,0 +1,21 @@
+{
+  "appId": "go2-ros2-bridge-only",
+  "version": "0.1.1",
+  "platform": "linux/arm64",
+  "services": {
+    "bridge": {
+      "context": "./bridge",
+      "frameworks": {
+        "ros2": {
+          "distro": "jazzy",
+          "domainId": 30,
+          "rmw": "cyclonedds"
+        }
+      },
+      "entitlements": [
+        { "type": "network", "mode": "host" },
+        { "type": "camera" }
+      ]
+    }
+  }
+}

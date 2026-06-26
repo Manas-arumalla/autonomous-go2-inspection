@@ -1,0 +1,118 @@
+<?xml version="1.0"?>
+<!-- Gazebo HARMONIC integration for the Go2 (ADR-010): replaces the Classic plugins with
+     gz_ros2_control + gz sensors. CHAMP (champ_base) drives joint_group_effort_controller;
+     the L1 LiDAR/IMU publish gz topics bridged to the mirrored real-Go2 contract (ADR-007).
+     CHAMP owns odom->base_link (close-loop leg odometry), so no gz odometry here. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- gz_ros2_control: brings up controller_manager + loads the Go2 controllers on Harmonic -->
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(find go2_config)/config/ros_control/ros_control.yaml</parameters>
+    </plugin>
+  </gazebo>
+
+  <!-- Accurate base odometry (twist) — represents the real Go2's onboard state estimator, which is
+       accurate. Replaces the noisy CHAMP leg-odometry whose drift made the robot mis-localize and
+       drive into walls (and smeared the 3D map). Bridged to /odom_gz, fused by footprint_to_odom_ekf. -->
+  <gazebo>
+    <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
+      <odom_frame>odom</odom_frame>
+      <robot_base_frame>base_link</robot_base_frame>
+      <odom_publish_frequency>50</odom_publish_frequency>
+      <dimensions>3</dimensions>
+      <odom_topic>odom_gz</odom_topic>
+    </plugin>
+  </gazebo>
+
+  <!-- ros2_control system: 12 actuated joints, effort command (matches the JointTrajectoryController
+       + PID gains in go2_config/ros_control.yaml), position/velocity/effort state. -->
+  <ros2_control name="GazeboSimSystem" type="system">
+    <hardware>
+      <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+    </hardware>
+    <!-- initial_value seeds the Go2 STAND pose at spawn (hip 0, thigh 0.9, calf -1.8 rad) so the
+         PID holds the dog standing from the first frame instead of letting it collapse before the
+         gait engages. Matches CHAMP nominal_height 0.225 (thigh=calf=0.213 m). -->
+    <xacro:macro name="leg_ros2_control" params="name">
+      <joint name="${name}_hip_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"><param name="initial_value">0.0</param></state_interface>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+      </joint>
+      <joint name="${name}_upper_leg_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"><param name="initial_value">0.9</param></state_interface>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+      </joint>
+      <joint name="${name}_lower_leg_joint">
+        <command_interface name="position"/>
+        <state_interface name="position"><param name="initial_value">-1.8</param></state_interface>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+      </joint>
+    </xacro:macro>
+    <xacro:leg_ros2_control name="lf"/>
+    <xacro:leg_ros2_control name="rf"/>
+    <xacro:leg_ros2_control name="lh"/>
+    <xacro:leg_ros2_control name="rh"/>
+  </ros2_control>
+
+  <!-- L1 LiDAR (gpu_lidar), front-biased FOV (lightened 360x8). gz topic 'utlidar' ->
+       /utlidar/points (PointCloudPacked) bridged to /utlidar/cloud_deskewed. -->
+  <gazebo reference="utlidar_lidar">
+    <sensor name="utlidar" type="gpu_lidar">
+      <topic>utlidar</topic>
+      <gz_frame_id>utlidar_lidar</gz_frame_id>
+      <update_rate>10</update_rate>
+      <always_on>true</always_on>
+      <!-- Mirrors the real Unitree L1: 360 deg horizontal x 90 deg vertical (hemispherical). The real
+           L1 is a non-repetitive dual-motor scanner (no fixed rings); gz's gpu_lidar can only do
+           rings, so we approximate with 32 vertical rings over 90 deg. Rich 3D cloud for the octomap;
+           the 2D /scan is the same flattened band regardless of ring count (p2l). -->
+      <lidar>
+        <scan>
+          <horizontal><samples>450</samples><resolution>1</resolution>
+            <min_angle>-3.14159</min_angle><max_angle>3.14159</max_angle></horizontal>
+          <vertical><samples>32</samples><resolution>1</resolution>
+            <min_angle>-0.785</min_angle><max_angle>0.785</max_angle></vertical>
+        </scan>
+        <!-- min 0.15: self-hits on the dog's own trunk/legs are removed GEOMETRICALLY by the
+             self_filter node (go2_exploration), not by a big dead zone. A small min lets the costmap
+             SEE + CLEAR walls right next to the robot -> fixes both the wall-trap (static_layer +
+             dead zone) and wall-climbing (no static_layer). See self_filter.cpp / ADR-013. -->
+        <range><min>0.15</min><max>30.0</max><resolution>0.01</resolution></range>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <!-- IMU on imu_link -> gz /imu (bridge to /imu) -->
+  <gazebo reference="imu_link">
+    <sensor name="imu" type="imu">
+      <topic>imu</topic>
+      <gz_frame_id>imu_link</gz_frame_id>
+      <update_rate>200</update_rate>
+      <always_on>true</always_on>
+    </sensor>
+  </gazebo>
+
+  <!-- Front HD camera on camera_link -> gz topic 'camera/image' (gz.msgs.Image) bridged to ROS
+       /camera/image_raw. The real Go2 has a front camera; this feeds the inspection/detection task. -->
+  <gazebo reference="camera_link">
+    <sensor name="camera" type="camera">
+      <topic>camera/image</topic>
+      <gz_frame_id>camera_link</gz_frame_id>
+      <optical_frame_id>camera_link_optical</optical_frame_id>   <!-- image+CameraInfo published in the z-forward optical frame -->
+      <update_rate>15</update_rate>
+      <always_on>true</always_on>
+      <camera>
+        <horizontal_fov>1.396</horizontal_fov>
+        <image><width>640</width><height>480</height><format>R8G8B8</format></image>
+        <clip><near>0.1</near><far>30.0</far></clip>
+      </camera>
+    </sensor>
+  </gazebo>
+
+</robot>

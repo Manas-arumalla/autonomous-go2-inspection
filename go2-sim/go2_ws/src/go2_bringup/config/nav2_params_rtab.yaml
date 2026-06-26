@@ -1,0 +1,280 @@
+# Nav2 (Jazzy) for the Go2 — 2D, lean for the Orin (ADR-009). No AMCL: slam_toolbox owns
+# map->odom. allow_unknown:true so the planner can head toward frontiers into unmapped space.
+# Costmaps use /scan (the L1 cloud flattened). Footprint ~ Go2 (0.40 x 0.20 m).
+
+bt_navigator:
+  ros__parameters:
+    use_sim_time: true
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /odom
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    navigators: ["navigate_to_pose", "navigate_through_poses"]
+    navigate_to_pose:
+      plugin: "nav2_bt_navigator::NavigateToPoseNavigator"
+    navigate_through_poses:
+      plugin: "nav2_bt_navigator::NavigateThroughPosesNavigator"
+
+controller_server:
+  ros__parameters:
+    use_sim_time: true
+    controller_frequency: 20.0    # MPPI needs period (1/freq=0.05) <= model_dt (0.05)
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.001    # Go2 is holonomic (can strafe) -> don't zero small lateral odom/cmds
+    min_theta_velocity_threshold: 0.001
+    failure_tolerance: 0.3
+    progress_checker_plugins: ["progress_checker"]
+    goal_checker_plugins: ["goal_checker"]
+    controller_plugins: ["FollowPath"]
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.4
+      movement_time_allowance: 20.0   # was 12 -- with min_vel_x=0 the robot turns IN PLACE to face goals
+                                       # behind it (no translation during the turn); 12s tripped the
+                                       # progress checker mid-turn -> false "Failed to make progress".
+    goal_checker:
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.35    # exploration: arrive NEAR the frontier, not pinpoint
+      yaw_goal_tolerance: 3.15   # IGNORE final heading — a frontier goal has no meaningful yaw, and
+                                 # enforcing one made MPPI spin-in-place at the goal (the "circling").
+      stateful: true
+    FollowPath:
+      # DWB — the SIMPLE, PROVEN local planner behind our confirmed-perfect 2D facility exploration
+      # (reverted from MPPI/RPP per user: keep it simple). Limits match the Go2 trot (vx<=0.26,
+      # wz<=0.5). vtheta_samples raised to 40 so it always has a valid in-place turn (no freeze).
+      plugin: "dwb_core::DWBLocalPlanner"
+      debug_trajectory_details: true
+      min_vel_x: 0.0                 # NO controller reverse: the robot was backing into walls it can't see
+                                     # well (rear LiDAR dead zone). It now only goes forward / turns in place;
+                                     # backing out of a wedge is left to Nav2's collision-aware BackUp recovery.
+      max_vel_x: 0.26
+      # OMNIDIRECTIONAL (CP46): the Go2 is holonomic -- it can strafe (the CHAMP gait allows vy<=0.25). Let DWB
+      # sample LATERAL trajectories so the planner can SIDESTEP in tight spaces instead of only turning in place
+      # (the Go2 is 0.31m wide vs 0.70m long, so it fits sideways through gaps it can't enter nose-first).
+      # Conservative 0.15 m/s = the validated sweep strafe speed (real-robot-safe); raise toward 0.25 if stable.
+      # max_speed_xy stays 0.26 so TOTAL speed is bounded (the robot trades forward speed for lateral).
+      min_vel_y: -0.15
+      max_vel_y: 0.15
+      max_vel_theta: 0.4
+      min_speed_xy: 0.0
+      max_speed_xy: 0.26
+      min_speed_theta: 0.0
+      acc_lim_x: 0.6
+      acc_lim_y: 0.6
+      acc_lim_theta: 1.0
+      decel_lim_x: -0.6
+      decel_lim_y: -0.6
+      decel_lim_theta: -1.0
+      vx_samples: 20
+      vy_samples: 5
+      vtheta_samples: 40
+      sim_time: 1.5
+      linear_granularity: 0.05
+      angular_granularity: 0.025
+      transform_tolerance: 0.2
+      xy_goal_tolerance: 0.35
+      trans_stopped_velocity: 0.25
+      short_circuit_trajectory_evaluation: true
+      critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
+      BaseObstacle.scale: 0.1        # was 0.02 (too low -> DWB ignored wall proximity + hugged the path
+                                     # into walls). Higher -> trajectories that pass near walls score worse.
+      PathAlign.scale: 32.0
+      PathAlign.forward_point_distance: 0.1
+      GoalAlign.scale: 24.0
+      GoalAlign.forward_point_distance: 0.1
+      PathDist.scale: 32.0
+      GoalDist.scale: 24.0
+      RotateToGoal.scale: 32.0
+      RotateToGoal.slowing_factor: 5.0
+      RotateToGoal.lookahead_time: -1.0
+
+planner_server:
+  ros__parameters:
+    use_sim_time: true
+    expected_planner_frequency: 2.0
+    planner_plugins: ["GridBased"]
+    GridBased:
+      plugin: "nav2_navfn_planner::NavfnPlanner"
+      tolerance: 1.0     # accept a path ending within 1m of the frontier goal (fewer plan failures)
+      use_astar: false   # Dijkstra: explores the full inflated costmap -> smoother, CENTRED paths. A* biases
+                         # toward the goal and can shortcut along walls (research-backed wall-hugging cause).
+      allow_unknown: true
+
+behavior_server:
+  ros__parameters:
+    use_sim_time: true
+    local_costmap_topic: local_costmap/costmap_raw
+    local_footprint_topic: local_costmap/published_footprint
+    global_costmap_topic: global_costmap/costmap_raw
+    global_footprint_topic: global_costmap/published_footprint
+    cycle_frequency: 10.0
+    # Recovery behaviors (fired by the BT recovery subtree, and reusable on the REAL Go2):
+    #   backup           — reverse straight out when wedged against a wall (the key escape)
+    #   spin             — rotate in place to find a clear heading
+    #   drive_on_heading — nudge forward along a clear heading after backing up
+    #   wait             — pause for a moving obstacle (warehouse has walking people) to clear
+    behavior_plugins: ["spin", "backup", "drive_on_heading", "wait"]
+    spin:
+      plugin: "nav2_behaviors::Spin"
+    backup:
+      plugin: "nav2_behaviors::BackUp"
+    drive_on_heading:
+      plugin: "nav2_behaviors::DriveOnHeading"
+    wait:
+      plugin: "nav2_behaviors::Wait"
+    simulate_ahead_time: 1.5
+    max_rotational_vel: 0.5
+    min_rotational_vel: 0.2
+    rotational_acc_lim: 1.0
+    local_frame: odom
+    global_frame: map
+    robot_base_frame: base_link
+    transform_tolerance: 0.2
+
+velocity_smoother:
+  ros__parameters:
+    use_sim_time: true
+    smoothing_frequency: 20.0
+    scale_velocities: false
+    feedback: "OPEN_LOOP"
+    max_velocity: [0.30, 0.15, 0.8]    # y enabled for omni (consistent with DWB); note: smoother not launched
+    min_velocity: [-0.15, -0.15, -0.8]
+    max_accel: [1.0, 0.6, 2.0]
+    max_decel: [-1.0, -0.6, -2.0]
+    odom_topic: "/odom"
+    odom_duration: 0.1
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time: true
+      global_frame: odom
+      robot_base_frame: base_link
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      rolling_window: true
+      width: 4
+      height: 4
+      resolution: 0.05
+      footprint: "[[0.35,0.155],[0.35,-0.155],[-0.35,-0.155],[-0.35,0.155]]"   # 0.70x0.31 — Unitree Go2
+      # STANDARD standing footprint (real-robot spec). Robustly bounds the modeled body: trunk 0.376m,
+      # the front L1/camera head at x=+0.30 (the OLD 0.52x0.32 box CLIPPED it), and the leg stance/swing
+      # (hips x=±0.19, feet y≈±0.14). Width 0.31 stays the aisle-limiting dim; +footprint_padding below.
+      footprint_padding: 0.05
+      # RTAB-Map variant: NO static_layer here. rtabmap publishes /map sparsely (only on new graph
+      # nodes), so a StaticLayer subscribed to it stalls with "no map received" -> the WHOLE local
+      # costmap "times out waiting for update" -> DWB never gets a costmap -> aborts every goal -> robot
+      # frozen. Walls for local collision-checking come from the obstacle_layer (/scan, 10Hz, reliable).
+      plugins: ["obstacle_layer", "inflation_layer"]
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+          raytrace_max_range: 8.0
+          obstacle_max_range: 6.0
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 1.0     # LOW = wide, gentle gradient -> a cost basin that CENTRES the path in
+                                     # corridors. A high factor (Nav2 default 10) is the classic wall-hugger.
+        inflation_radius: 0.55       # CP48: 0.7 filled the narrow maze corridors edge-to-edge (gradients from
+                                     # both walls met -> NO clear lane -> planner stuck at the corridor mouth).
+                                     # 0.35 keeps ~0.20m off the footprint edge and still centres the path in a
+                                     # corridor; nudge up only if the gait clips walls near doorways.
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      use_sim_time: true
+      global_frame: map
+      robot_base_frame: base_link
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      resolution: 0.05
+      track_unknown_space: true
+      always_send_full_costmap: true   # republish the FULL costmap every cycle (robust for subscribers)
+      # RTAB-Map variant (Go2-Inspector architecture): the global costmap sizes itself to rtabmap's /map,
+      # which now has real free cells (Grid/Sensor=0). The static_layer uses that loop-closure-corrected
+      # grid, so the planner and the frontier_explorer (which reads /map directly) share ONE consistent
+      # map. The obstacle_layer (/scan) adds live obstacles on top. map->odom localization is rtabmap's.
+      footprint: "[[0.35,0.155],[0.35,-0.155],[-0.35,-0.155],[-0.35,0.155]]"   # 0.70x0.31 — Unitree Go2
+      # STANDARD standing footprint (real-robot spec). Robustly bounds the modeled body: trunk 0.376m,
+      # the front L1/camera head at x=+0.30 (the OLD 0.52x0.32 box CLIPPED it), and the leg stance/swing
+      # (hips x=±0.19, feet y≈±0.14). Width 0.31 stays the aisle-limiting dim; +footprint_padding below.
+      footprint_padding: 0.05
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+          raytrace_max_range: 8.0
+          obstacle_max_range: 6.0
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 1.0     # LOW = wide, gentle gradient -> a cost basin that CENTRES the path in
+                                     # corridors. A high factor (Nav2 default 10) is the classic wall-hugger.
+        inflation_radius: 0.55       # CP48: 0.7 filled the narrow maze corridors edge-to-edge (gradients from
+                                     # both walls met -> NO clear lane -> planner stuck at the corridor mouth).
+                                     # 0.35 keeps ~0.20m off the footprint edge and still centres the path in a
+                                     # corridor; nudge up only if the gait clips walls near doorways.
+
+# NOTE: go2_bringup/nav2.launch.py deliberately does NOT launch the collision_monitor (under
+# navigation_launch.py it force-starts and aborted lifecycle bringup here), so this block is INERT in our
+# stack -- controller_server publishes /cmd_vel directly and CHAMP consumes it. Because nothing here
+# protects motion, the zone_sweeper's open-loop strafe SELF-GUARDS via a /scan lateral-clearance gate
+# (zone_sweeper.py _lateral_clear). Config below is unused unless a future bringup re-enables the chain.
+collision_monitor:
+  ros__parameters:
+    use_sim_time: true
+    base_frame_id: "base_footprint"
+    odom_frame_id: "odom"
+    cmd_vel_in_topic: "cmd_vel_smoothed"
+    cmd_vel_out_topic: "cmd_vel"
+    transform_tolerance: 0.2
+    source_timeout: 1.0
+    base_shift_correction: True
+    stop_pub_timeout: 2.0
+    enable_stamped_cmd_vel: false      # CHAMP subscribes geometry_msgs/Twist, not TwistStamped
+    polygons: ["FootprintApproach"]
+    FootprintApproach:
+      type: "polygon"
+      action_type: "approach"
+      footprint_topic: "/local_costmap/published_footprint"
+      time_before_collision: 1.2
+      simulation_time_step: 0.1
+      min_points: 6
+      visualize: False
+      enabled: True
+    observation_sources: ["scan"]
+    scan:
+      type: "scan"
+      topic: "/scan"
+      min_height: 0.15
+      max_height: 2.0
+      enabled: True
+
+# Path smoother — bt_navigator's default NavigateToPose BT calls SmoothPath (smoother_server).
+smoother_server:
+  ros__parameters:
+    use_sim_time: true
+    smoother_plugins: ["simple_smoother"]
+    simple_smoother:
+      plugin: "nav2_smoother::SimpleSmoother"
+      tolerance: 1.0e-10
+      max_its: 1000
+      do_refinement: True

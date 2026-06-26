@@ -1,0 +1,26 @@
+# Flatten the L1 3D cloud (/utlidar/cloud_deskewed) to a 2D /scan for slam_toolbox + Nav2.
+# Height band is taken around base_link so walls/obstacles in the robot's plane are kept.
+/**:
+  ros__parameters:
+    use_sim_time: true
+    target_frame: base_link        # flatten into the body frame
+    transform_tolerance: 0.1
+    # Ground rejection for the costmap obstacle_layer. base_link sits at the gait nominal_height (~0.225m,
+    # NOT the old comment's 0.40), so the floor is at ~base_link z=-0.225. The L1 is also pitched ~8.6 deg
+    # DOWN (utlidar rpy 0 0.15 0), raking the floor a few m out. With the old min_height=-0.20 the floor sat
+    # only ~2.5cm below the band and leaked in on every gait bob -> phantom ground obstacles in the costmap.
+    # -0.14 keeps an ~8cm floor-rejection margin (incl. gait bob) and still sees every real obstacle here
+    # (walls 1.6m, tables 0.7-0.9m). Trade-off: blind to sub-~0.08m clutter (none in this facility).
+    min_height: -0.02
+    max_height:  0.60
+    # Full 360 deg (matches the real L1 + the gz 360 deg gpu_lidar). Count must satisfy p2l's
+    # ceil((max-min)/inc) == slam/Karto's round()+1 (frac of the ratio in (0,0.5)) else Karto
+    # rejects every scan: 2*pi/0.0087 = 722.2 -> ceil=723, round+1=723. Match.
+    angle_min: -3.14159           # -180 deg
+    angle_max:  3.14159           # +180 deg
+    angle_increment: 0.0087        # ~0.5 deg  (723 readings)
+    scan_time: 0.1
+    range_min: 0.15              # small dead zone: the dog's body is already removed by self_filter (ADR-013)
+    range_max: 25.0
+    use_inf: true
+    inf_epsilon: 1.0

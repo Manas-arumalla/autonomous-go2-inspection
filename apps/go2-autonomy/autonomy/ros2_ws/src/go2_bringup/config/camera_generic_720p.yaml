@@ -1,0 +1,25 @@
+# GENERIC 1280x720 USB-webcam intrinsics (~70 deg HFOV) for the EXTERNAL RGB camera.
+# APPROXIMATE -- good enough for the inspection panorama to stitch + the segmenter/Claude to read, but
+# RECALIBRATE for accurate gauge sizing:  ros2 run camera_calibration cameracalibrator ... then point
+# CAMERA_INFO_URL (or real_bringup's camera_info_url) at the resulting file.
+# fx=fy=914 for 1280px @ ~70deg: fx = (1280/2)/tan(35deg) ~= 914 ; cx,cy = image centre.
+image_width: 1280
+image_height: 720
+camera_name: external_rgb
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [914.0, 0.0, 640.0, 0.0, 914.0, 360.0, 0.0, 0.0, 1.0]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [0.0, 0.0, 0.0, 0.0, 0.0]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [914.0, 0.0, 640.0, 0.0, 0.0, 914.0, 360.0, 0.0, 0.0, 0.0, 1.0, 0.0]

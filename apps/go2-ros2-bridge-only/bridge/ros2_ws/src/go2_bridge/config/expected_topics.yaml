@@ -1,0 +1,36 @@
+# Go2 expected topics configuration
+# Used by topic_monitor node and for reference
+
+odom_tf_bridge:
+  ros__parameters:
+    odom_source_topic: /utlidar/robot_odom
+    odom_output_topic: /odom
+    odom_frame_id: odom
+    base_frame_id: base_link
+    publish_tf: true
+    restamp_with_ros_time: true
+
+joint_state_bridge:
+  ros__parameters:
+    lowstate_topic: /lowstate
+    joint_states_topic: /joint_states
+    base_frame_id: base_link
+
+cmd_vel_bridge:
+  ros__parameters:
+    cmd_vel_topic: /cmd_vel
+    sport_request_topic: /api/sport/request
+    max_vx: 0.6
+    max_vy: 0.4
+    max_vyaw: 1.0
+    watchdog_timeout: 0.5
+    watchdog_rate: 10.0
+
+sensor_bridge:
+  ros__parameters:
+    restamp_with_ros_time: true
+
+topic_monitor:
+  ros__parameters:
+    check_interval: 10.0
+    log_all: false

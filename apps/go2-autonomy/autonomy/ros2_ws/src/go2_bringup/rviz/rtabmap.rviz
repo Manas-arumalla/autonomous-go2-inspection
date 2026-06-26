@@ -1,0 +1,111 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Global Options:
+    Fixed Frame: map
+    Frame Rate: 20
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Color: 160; 160; 164
+      Plane Cell Count: 40
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Show Names: false
+      Marker Scale: 0.6
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Enabled: true
+      Description Topic:
+        Value: /robot_description
+        Depth: 5
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+    # ---- THE FRONTIER MAP = RTAB-Map's 2D occupancy grid (/map). The frontier_explorer reads THIS
+    #      directly (Go2-Inspector architecture). Free/occupied/unknown built by rtabmap from the lidar. ----
+    - Class: rviz_default_plugins/Map
+      Name: RTAB-Map /map (= Frontier Map)
+      Enabled: true
+      Topic:
+        Value: /map
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+      Color Scheme: map
+    # ---- the Nav2 global costmap (static_layer=/map + obstacle_layer=/scan + inflation); toggle to inspect ----
+    - Class: rviz_default_plugins/Map
+      Name: Nav2 Global Costmap
+      Enabled: false
+      Topic:
+        Value: /global_costmap/costmap
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+      Color Scheme: costmap
+      Alpha: 0.7
+    # ---- RTAB-MAP 3D MAP : octomap voxels from the LiDAR, coloured by height ----
+    - Class: rviz_default_plugins/MarkerArray
+      Name: RTAB-Map 3D (OctoMap)
+      Enabled: true
+      Topic:
+        Value: /occupied_cells_vis_array
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+    # ---- RTAB-MAP POSE GRAPH : nodes + odometry links + loop closures (proper rtabmap plugin) ----
+    - Class: rtabmap_rviz_plugins/MapGraph
+      Name: RTAB-Map Pose Graph
+      Enabled: true
+      Topic:
+        Value: /rtabmap/mapGraph
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+    # ---- RAW 3D LiDAR SCAN being integrated, coloured by height ----
+    - Class: rviz_default_plugins/PointCloud2
+      Name: 3D LiDAR Scan
+      Enabled: true
+      Topic:
+        Value: /utlidar/cloud_deskewed
+        Durability Policy: Volatile
+        Reliability Policy: Best Effort
+      Size (Pixels): 2
+      Style: Points
+      Color Transformer: AxisColor
+      Axis: Z
+    - Class: rviz_default_plugins/LaserScan
+      Name: LaserScan (/scan)
+      Enabled: true
+      Topic:
+        Value: /scan
+        Reliability Policy: Best Effort
+      Size (Pixels): 3
+      Color: 255; 85; 0
+    # ---- exploration targets + current plan ----
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Frontiers
+      Enabled: true
+      Topic:
+        Value: /explore/frontiers
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+    - Class: rviz_default_plugins/Path
+      Name: Nav2 Plan
+      Enabled: true
+      Topic:
+        Value: /plan
+        Reliability Policy: Best Effort
+      Color: 0; 255; 0
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Measure
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 32
+      Pitch: 1.0
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Yaw: 3.14

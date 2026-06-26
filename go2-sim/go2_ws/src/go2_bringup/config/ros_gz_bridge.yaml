@@ -1,0 +1,44 @@
+# ros_gz bridge — maps Gazebo topics to the mirrored real-Go2 ROS 2 contract (ADR-007).
+# direction: GZ_TO_ROS | ROS_TO_GZ | BIDIRECTIONAL
+
+# clock (sim time)
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
+# drive command: Nav2/teleop -> base (velocity base, ADR-003)
+- ros_topic_name: "/cmd_vel"
+  gz_topic_name: "/model/go2/cmd_vel"
+  ros_type_name: "geometry_msgs/msg/Twist"
+  gz_type_name: "gz.msgs.Twist"
+  direction: ROS_TO_GZ
+
+# odometry (mirrors real Go2 /utlidar/robot_odom)
+- ros_topic_name: "/utlidar/robot_odom"
+  gz_topic_name: "/model/go2/odometry"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS
+
+# odom->base_link TF
+- ros_topic_name: "/tf"
+  gz_topic_name: "/model/go2/pose"
+  ros_type_name: "tf2_msgs/msg/TFMessage"
+  gz_type_name: "gz.msgs.Pose_V"
+  direction: GZ_TO_ROS
+
+# L1 LiDAR 3D cloud (mirrors real Go2 /utlidar/cloud_deskewed)
+- ros_topic_name: "/utlidar/cloud_deskewed"
+  gz_topic_name: "/utlidar/points"
+  ros_type_name: "sensor_msgs/msg/PointCloud2"
+  gz_type_name: "gz.msgs.PointCloudPacked"
+  direction: GZ_TO_ROS
+
+# IMU
+- ros_topic_name: "/imu"
+  gz_topic_name: "/imu"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS

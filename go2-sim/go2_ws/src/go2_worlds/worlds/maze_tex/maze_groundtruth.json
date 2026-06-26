@@ -1,0 +1,70 @@
+[
+  {
+    "id": "gauge_00",
+    "asset": "NW-PRES-1",
+    "room": "NW",
+    "wall": "west",
+    "type": "PRESSURE",
+    "unit": "bar",
+    "range_min": 0,
+    "range_max": 16,
+    "true_reading": 9,
+    "anomaly": false,
+    "pose": [
+      -5.85,
+      2.0,
+      0.6
+    ]
+  },
+  {
+    "id": "gauge_01",
+    "asset": "NE-VOLT-1",
+    "room": "NE",
+    "wall": "east",
+    "type": "VOLTAGE",
+    "unit": "V",
+    "range_min": 0,
+    "range_max": 500,
+    "true_reading": 470,
+    "anomaly": true,
+    "pose": [
+      5.85,
+      2.0,
+      0.6
+    ]
+  },
+  {
+    "id": "gauge_02",
+    "asset": "SW-TEMP-1",
+    "room": "SW",
+    "wall": "south",
+    "type": "TEMPERATURE",
+    "unit": "degC",
+    "range_min": 0,
+    "range_max": 150,
+    "true_reading": 70,
+    "anomaly": false,
+    "pose": [
+      -3.0,
+      -3.85,
+      0.6
+    ]
+  },
+  {
+    "id": "gauge_03",
+    "asset": "SE-FLOW-1",
+    "room": "SE",
+    "wall": "south",
+    "type": "FLOW",
+    "unit": "L/min",
+    "range_min": 0,
+    "range_max": 500,
+    "true_reading": 240,
+    "anomaly": false,
+    "pose": [
+      3.0,
+      -3.85,
+      0.6
+    ]
+  }
+]

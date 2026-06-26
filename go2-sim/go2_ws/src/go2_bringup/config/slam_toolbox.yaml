@@ -1,0 +1,45 @@
+# slam_toolbox online-async (2D) — builds /map from /scan, owns map->odom (ADR-004).
+# Minimal lean config for the 8 GB Orin / WendyOS (ADR-009). NOTE: stack_size_to_use is
+# intentionally omitted — it spawned a custom-stack thread that hung headless.
+slam_toolbox:
+  ros__parameters:
+    use_sim_time: true
+    # frames (mirror the real Go2 contract, ADR-007)
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan
+    mode: mapping
+
+    # map
+    resolution: 0.05
+    max_laser_range: 25.0
+    map_update_interval: 1.0
+    transform_publish_period: 0.02
+    transform_timeout: 0.5
+    tf_buffer_duration: 30.0
+    minimum_time_interval: 0.2
+    throttle_scans: 1
+
+    # scan matching
+    use_scan_matching: true
+    use_scan_barycenter: true
+    minimum_travel_distance: 0.3
+    minimum_travel_heading: 0.3
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 12.0
+    link_match_minimum_response_fine: 0.1
+    link_scan_maximum_distance: 1.5
+    correlation_search_space_dimension: 0.5
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1
+
+    # loop closure
+    do_loop_closing: true
+    loop_search_maximum_distance: 3.0
+    loop_match_minimum_chain_size: 10
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine: 0.45
+    loop_search_space_dimension: 8.0
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03

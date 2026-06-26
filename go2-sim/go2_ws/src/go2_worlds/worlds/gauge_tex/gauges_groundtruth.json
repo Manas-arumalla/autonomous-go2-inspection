@@ -1,0 +1,50 @@
+[
+  {
+    "id": "gauge_00",
+    "type": "PRESSURE",
+    "unit": "psi",
+    "range_min": 0,
+    "range_max": 100,
+    "true_reading": 45
+  },
+  {
+    "id": "gauge_01",
+    "type": "VOLTAGE",
+    "unit": "V",
+    "range_min": 0,
+    "range_max": 300,
+    "true_reading": 220
+  },
+  {
+    "id": "gauge_02",
+    "type": "TEMPERATURE",
+    "unit": "degC",
+    "range_min": 0,
+    "range_max": 150,
+    "true_reading": 90
+  },
+  {
+    "id": "gauge_03",
+    "type": "PRESSURE",
+    "unit": "bar",
+    "range_min": 0,
+    "range_max": 10,
+    "true_reading": 7.0
+  },
+  {
+    "id": "gauge_04",
+    "type": "CURRENT",
+    "unit": "A",
+    "range_min": 0,
+    "range_max": 50,
+    "true_reading": 30
+  },
+  {
+    "id": "gauge_05",
+    "type": "PRESSURE",
+    "unit": "psi",
+    "range_min": 0,
+    "range_max": 200,
+    "true_reading": 175
+  }
+]

@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+<!-- Go2 for Gazebo HARMONIC (ADR-010): real meshes + legs (CHAMP lf/rf/lh/rh) + the L1 LiDAR
+     mount + gz_ros2_control/gz sensors (gazebo_gz.xacro). Same kinematics as robot.xacro;
+     only the Gazebo integration differs (Classic -> Harmonic). -->
+<robot name="go2" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="$(find go2_description)/xacro/const.xacro"/>
+  <xacro:include filename="$(find go2_description)/xacro/materials.xacro"/>
+  <xacro:include filename="$(find go2_description)/xacro/leg.xacro"/>
+  <xacro:include filename="$(find go2_description)/xacro/gazebo_gz.xacro"/>
+
+  <link name="base_link">
+    <visual><origin rpy="0 0 0" xyz="0 0 0"/><geometry><box size="0.001 0.001 0.001"/></geometry></visual>
+  </link>
+
+  <joint name="floating_base" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0"/><parent link="base_link"/><child link="trunk"/>
+  </joint>
+
+  <link name="trunk">
+    <visual><origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry><mesh filename="file://$(find go2_description)/meshes/trunk.dae" scale="1 1 1"/></geometry></visual>
+    <collision><origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry><box size="${trunk_length} ${trunk_width} ${trunk_height}"/></geometry></collision>
+    <inertial><origin rpy="0 0 0" xyz="${trunk_com_x} ${trunk_com_y} ${trunk_com_z}"/>
+      <mass value="${trunk_mass}"/>
+      <inertia ixx="${trunk_ixx}" ixy="${trunk_ixy}" ixz="${trunk_ixz}"
+               iyy="${trunk_iyy}" iyz="${trunk_iyz}" izz="${trunk_izz}"/></inertial>
+  </link>
+
+  <joint name="imu_joint" type="fixed">
+    <parent link="trunk"/><child link="imu_link"/><origin rpy="0 0 0" xyz="0 0 0"/>
+  </joint>
+  <link name="imu_link">
+    <inertial><mass value="0.001"/><origin rpy="0 0 0" xyz="0 0 0"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/></inertial>
+  </link>
+
+  <!-- L1 LiDAR at the MOUTH/chin (front-low of the head), tilted ~8.5 deg DOWNWARD — mirrors the
+       real Go2's L1 placement. Single functional lidar; 2D /scan = its 3D cloud flattened by p2l
+       (vertical FOV widened to keep forward wall coverage despite the downward tilt). -->
+  <joint name="utlidar_joint" type="fixed">
+    <parent link="trunk"/><child link="utlidar_lidar"/><origin rpy="0 0.15 0" xyz="0.30 0 -0.02"/>
+  </joint>
+  <link name="utlidar_lidar">
+    <inertial><mass value="0.1"/><origin rpy="0 0 0" xyz="0 0 0"/>
+      <inertia ixx="1e-4" ixy="0" ixz="0" iyy="1e-4" iyz="0" izz="1e-4"/></inertial>
+    <visual><geometry><cylinder radius="0.03" length="0.04"/></geometry></visual>
+  </link>
+
+  <!-- Front HD camera on the head (the real Go2 has one; needed for the inspection task). Looks +x. -->
+  <joint name="camera_joint" type="fixed">
+    <parent link="trunk"/><child link="camera_link"/><origin rpy="0 0 0" xyz="0.30 0 0.06"/>
+  </joint>
+  <link name="camera_link">
+    <inertial><mass value="0.05"/><origin rpy="0 0 0" xyz="0 0 0"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/></inertial>
+    <visual><geometry><box size="0.02 0.04 0.02"/></geometry></visual>
+  </link>
+  <!-- Standard ROS optical frame (z-forward, x-right, y-down) for the camera. Image/CameraInfo are
+       published in THIS frame (gz <optical_frame_id>), so projecting the LiDAR into the image
+       (pointcloud_to_depthimage) and back-projecting SAM3 detections both work with the usual
+       image_geometry convention. Without it, points project outside the image -> empty depth. -->
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/><child link="camera_link_optical"/>
+    <origin rpy="-1.5708 0 -1.5708" xyz="0 0 0"/>
+  </joint>
+  <link name="camera_link_optical"/>
+
+  <!-- classic_ros2_control=false: Harmonic uses the combined gz_ros2_control block (gazebo_gz.xacro) -->
+  <xacro:leg name="rf" mirror="-1" mirror_dae="False" front_hind="1"  front_hind_dae="True"  classic_ros2_control="false"/>
+  <xacro:leg name="lf" mirror="1"  mirror_dae="True"  front_hind="1"  front_hind_dae="True"  classic_ros2_control="false"/>
+  <xacro:leg name="rh" mirror="-1" mirror_dae="False" front_hind="-1" front_hind_dae="False" classic_ros2_control="false"/>
+  <xacro:leg name="lh" mirror="1"  mirror_dae="True"  front_hind="-1" front_hind_dae="False" classic_ros2_control="false"/>
+
+</robot>

@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>go2_bridge</name>
+  <version>0.1.0</version>
+  <description>Bridge nodes for Unitree Go2 on ROS 2 Jazzy: odom to TF, lowstate to joint_states, cmd_vel to sport_api, sensor bridge, and topic monitor.</description>
+  <maintainer email="team@hackathon.dev">ee-hackathon</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+
+  <!-- Unitree message packages (built from unitree_ros2 repo) -->
+  <exec_depend>unitree_go</exec_depend>
+  <exec_depend>unitree_api</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

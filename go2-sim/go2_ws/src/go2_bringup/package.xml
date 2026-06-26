@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>go2_bringup</name>
+  <version>0.1.0</version>
+  <description>Bringup: gz sim + ros_gz bridge + slam_toolbox + Nav2 launch</description>
+  <maintainer email="manasreddyarumalla@gmail.com">team</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>ros_gz_sim</depend>
+  <depend>ros_gz_bridge</depend>
+  <depend>slam_toolbox</depend>
+  <depend>nav2_bringup</depend>
+  <depend>pointcloud_to_laserscan</depend>
+  <depend>robot_localization</depend>
+  <depend>twist_mux</depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
