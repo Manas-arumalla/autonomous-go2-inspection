@@ -28,17 +28,92 @@ See [`Go2-Inspection-Template.pptx`](Go2-Inspection-Template.pptx) for the pitch
 
 ## Architecture
 
+> **`sim == real`** — one ROS 2 node graph runs in Gazebo and on the real Go2. The autonomy stack
+> binds only to the standard ROS 2 topic contract, so the graph that works in simulation deploys
+> unchanged on the Go2 via WendyOS. Swap the *provider* (Gazebo ⇄ Unitree Go2); everything below is identical.
+
+```mermaid
+flowchart TD
+    classDef sim  fill:#15263b,stroke:#36C2CE,stroke-width:2px,color:#eaf2fb
+    classDef real fill:#15263b,stroke:#F5A623,stroke-width:2px,color:#eaf2fb
+    classDef bus  fill:#0f2030,stroke:#36C2CE,stroke-width:2px,color:#eaf2fb
+    classDef auto fill:#15263b,stroke:#36C2CE,stroke-width:1.5px,color:#eaf2fb
+    classDef node fill:#15263b,stroke:#3f5d80,stroke-width:1.5px,color:#eaf2fb
+    classDef app  fill:#15263b,stroke:#F5A623,stroke-width:1.5px,color:#eaf2fb
+    classDef ai   fill:#2a1c10,stroke:#F5A623,stroke-width:2px,color:#F5A623
+
+    OP(["Operator — plain language"]):::ai
+    CLAUDE(["Claude + MCP"]):::ai
+
+    subgraph PROVIDER["PROVIDER - swappable (sim == real)"]
+        direction LR
+        GZ["Gazebo Harmonic<br/>Go2, L1 LiDAR, camera, IMU"]:::sim
+        GO2["Unitree Go2 EDU<br/>Jetson Orin, WendyOS"]:::real
+    end
+
+    BUS{{"ROS 2 TOPIC CONTRACT<br/>/cmd_vel, /odom, /scan, /camera, /tf, /clock"}}:::bus
+
+    subgraph FE["LOCOMOTION + PERCEPTION FRONT-END"]
+        direction LR
+        GAIT["Gait<br/>/cmd_vel -> walking"]:::node
+        L2S["LiDAR front-end<br/>self-filter -> /scan"]:::node
+        CAM["Camera<br/>/camera RGB"]:::node
+    end
+
+    subgraph AUTO["AUTONOMY (sim-agnostic)"]
+        direction LR
+        RT["RTAB-Map<br/>LiDAR SLAM, map->odom"]:::auto
+        NAV["Nav2 (DWB)<br/>plan, costmaps, recovery"]:::auto
+        FR["frontier_explorer<br/>info-gain -> goals"]:::auto
+    end
+
+    subgraph APP["APPLICATION - deployed on WendyOS"]
+        direction LR
+        MCP["go2-mcp<br/>12 natural-language tools"]:::app
+        INSP["Inspection pipeline<br/>wall-follow -> live YOLOE -> crop"]:::app
+        REP["Report<br/>type, unit, value, risk"]:::app
+    end
+
+    OP --> CLAUDE --> MCP
+    GZ <--> BUS
+    GO2 <--> BUS
+    BUS --> GAIT
+    BUS --> L2S
+    BUS --> CAM
+    L2S --> RT
+    CAM --> INSP
+    RT --> NAV
+    RT --> FR
+    FR --> NAV
+    INSP --> NAV
+    NAV -->|cmd_vel| BUS
+    MCP --> FR
+    MCP --> INSP
+    INSP -->|gauge crops| CLAUDE
+    CLAUDE --> REP
 ```
-                 sim  ==  real        (one ROS 2 graph, two providers)
-  Gazebo Harmonic  <-- same topics -->  Unitree Go2 EDU  (Jetson Orin · WendyOS)
-        |                                       |
-        +------------- ROS 2 TOPIC CONTRACT ----+
-          /cmd_vel  /utlidar  /odom  /scan  /camera  /tf  /clock
-        |
-  Front-end :  Gait  ·  LiDAR -> 2D /scan (self-filter + pointcloud_to_laserscan)  ·  Camera
-  Autonomy  :  RTAB-Map (LiDAR SLAM, map->odom)  ·  Nav2 (DWB)  ·  frontier_explorer
-  Application: Inspection (wall-follow -> live YOLOE -> Claude reads gauge -> report)
-               Operator interface — go2-mcp (12 natural-language tools)
+
+### Capability map
+
+```mermaid
+mindmap
+  root((Go2 Inspection on WendyOS))
+    Autonomy
+      RTAB-Map LiDAR SLAM
+      Nav2 DWB planner
+      Frontier exploration
+    Perception
+      LiDAR to 2D scan
+      Live YOLOE segmentation
+      Claude gauge reading
+    Control
+      go2-mcp 12 NL tools
+      mission_control services
+      Natural-language tasking
+    Platform
+      sim equals real
+      WendyOS on Jetson Orin
+      Unitree Go2 EDU
 ```
 
 ---
