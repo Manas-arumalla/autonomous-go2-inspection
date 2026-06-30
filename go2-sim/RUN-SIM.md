@@ -24,7 +24,23 @@ source /opt/ros/jazzy/setup.bash && source install/setup.bash
 
 ---
 
-## A. EASIEST — full autonomous mission, one command (watch in Gazebo)
+## ⚠️ Which path to run — CURRENT vs LEGACY
+
+**The current / recommended inspection engine is `zone_inspector`** (samples safe viewpoints per zone →
+Nav2 to each → 360° in-place spin with live YOLOE → **depth-projected 3D object positions** → Claude gauge
+reading), driven by the **async service layer**. Run it via **§ G — SMALL MAZE world + the SERVICE LAYER**
+below: `inspection_nav.launch.py` + `mission_control.launch.py`, then `inspect_zone` / `run_mission` (or the
+14-tool **MCP** server for natural-language control). Live mission phase: `get_status` / `get_events`.
+
+**Sections A–E are the LEGACY wall-follower path** (`mission.launch.py` / `zone_sweeper` /
+`panorama_segmenter` / `yoloe_segmenter`) — superseded by `zone_inspector` (ADR-016, `docs/05-CONVERGENCE.md`)
+but kept as a documented fallback. New runs should use **§ G**.
+
+---
+
+## A. (LEGACY wall-follower) EASIEST — full autonomous mission, one command (watch in Gazebo)
+> Superseded by the `zone_inspector` service-layer path in **§ G**; kept as a fallback.
+
 Brings up Gazebo + localization + Nav2, then runs the mission (HOME → each gauge room → sweep → segment →
 read → return HOME). `zones:=zone_3` does one room; drop it for all gauge rooms.
 ```bash

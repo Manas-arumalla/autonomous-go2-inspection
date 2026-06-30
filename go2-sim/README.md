@@ -13,11 +13,19 @@ graph runs on the real Go2 via WendyOS (see `../apps/`). Full project overview: 
 - **Exploration** — `frontier_explorer` (C++) drives Nav2 to autonomously map an unknown facility.
 - **Navigation** — Nav2 (DWB controller, frontier-friendly costmaps) over RTAB-Map's `/map`.
 - **Zone segmentation** — `go2_zones` watershed-segments the grid into room polygons.
-- **Inspection** — map-driven `zone_wall_follower`: walks each wall facing it (`vy`+`vyaw`), runs
-  **live YOLOE** open-vocab segmentation, and stops to crop every detected gauge.
-- **Reading & report** — Claude reads each crop (type · unit · value · risk) into a report.
-- **Control** — a 12-service `mission_control` layer and an **MCP server** exposing it as
+- **Inspection** — `zone_inspector`: samples safe viewpoints in each zone, drives Nav2 to each, and does a
+  360° in-place spin running **live YOLOE** open-vocab detection, projecting every detection to a **3D map
+  position** through the RGBD depth camera (map-position validation + persistence dedup), cropping each
+  gauge. *(The legacy `zone_wall_follower` wall-following path is kept as a fallback — see RUN-SIM.md.)*
+- **Reading & report** — Claude reads each detected gauge crop (type · unit · value · risk) into the
+  per-zone + facility report; `score()` grades readings vs ground truth.
+- **Control** — a 14-service `mission_control` layer (async task model + `cancel_task` + a structured
+  **mission event stream** surfaced through `get_status`/`get_events`) and an **MCP server** exposing it as
   natural-language Claude tools.
+- **Safety** *(opt-in)* — `use_safety:=true` inserts a `twist_mux` (nav < teleop < e-stop) + Nav2
+  `collision_monitor` velocity chain; default-off keeps the proven control path unchanged.
+- **Benchmarking & tests** — `benchmark.py` scores detection precision/recall + localization error vs world
+  ground truth; a `pytest` suite (23 tests) + GitHub Actions CI gate the ROS-free core.
 
 ## Read these
 
@@ -35,7 +43,9 @@ cd go2_ws && colcon build --symlink-install && source install/setup.bash
 export FASTDDS_BUILTIN_TRANSPORTS=UDPv4
 
 # Mapping + autonomous exploration:
-ros2 launch go2_bringup sim_mapping.launch.py world:=maze.sdf headless:=false
+ros2 launch go2_bringup rtabmap_slam.launch.py world:=maze.sdf headless:=false
+ros2 launch go2_bringup nav2.launch.py use_sim_time:=true \
+  params_file:=$(pwd)/install/go2_bringup/share/go2_bringup/config/nav2_params_rtab.yaml
 ros2 run go2_exploration frontier_explorer --ros-args -p use_sim_time:=true -p autostart:=true
 
 # Inspection on a saved map (see RUN-SIM.md for the full sequence):

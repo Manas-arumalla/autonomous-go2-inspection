@@ -5,6 +5,25 @@ Running history of milestones, checkpoints, and decisions. Newest at top.
 
 ---
 
+## CHECKPOINT 56 — Docs migrated to the converged workflow (M6 prerequisite) — 2026-06-30
+**Status:** 🟢 README + RUN-SIM now present the converged `zone_inspector` / service-layer path as primary;
+the legacy wall-follower is clearly marked as a kept fallback. **No code deleted** (the wall-follower still
+works + is still documented as a fallback, per the don't-break-working rule).
+
+- **README.md:** rewrote the **Inspection** capability to `zone_inspector` (viewpoint + 360° spin +
+  depth-3D detection + dedup), noted `zone_wall_follower` as the legacy fallback; updated **Control** to
+  14 services + the mission event stream; added **Safety** (opt-in) + **Benchmarking & tests** bullets;
+  fixed the mapping quick-start (`sim_mapping.launch.py` → `rtabmap_slam.launch.py` + `nav2.launch.py`).
+- **RUN-SIM.md:** added a prominent **"CURRENT vs LEGACY"** banner directing new runs to **§ G** (the
+  `inspection_nav` + `mission_control` + `inspect_zone`/`run_mission` + MCP path) and marking **§§ A–E** as
+  the legacy wall-follower fallback.
+- **Why docs-first:** the legacy nodes (`zone_sweeper`/`panorama_segmenter`/`yoloe_segmenter`/
+  `zone_wall_follower`) + `mission.launch.py`/`sim_mapping.launch.py` are referenced by README + RUN-SIM, so
+  retiring them (M6) requires this doc migration first. The code stays until the converged path is the
+  documented default — which it now is. **M6 deletion is the next step**, on owner go-ahead.
+
+---
+
 ## CHECKPOINT 55 — M7b safety layer: opt-in twist_mux + collision_monitor chain — 2026-06-30
 **Status:** 🟢 Built the velocity-arbitration + obstacle-stop chain as an **opt-in** Nav2 flag. Default
 path **byte-identical / zero risk**; twist_mux verified live. Full collision_monitor lifecycle activation
