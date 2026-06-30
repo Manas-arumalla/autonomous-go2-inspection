@@ -68,8 +68,24 @@ Detection runs online on the Orin GPU (YOLOE 20+ FPS) during the survey; plannin
 the heavy reader (Claude/VLM) runs **per asset** (a handful per room), off the locomotion loop. The robot
 stops only briefly at each gauge to read — real-time on-device.
 
-## Future (next-best-view loop)
+## Next-best-view re-approach (implemented)
 
-If a reading is low-confidence (glare/occlusion/blur), trigger a **re-approach from a different angle** — a
-closed-loop NBV step. Hardware lever for very large spaces: a PTZ/optical-zoom camera + the Go2's
-articulated head (read far without approaching — Spot's trick).
+The read step is **closed-loop**. `plan_reading_poses` returns a *ranked* list of reachable poses
+(wall-normal first, then nearest-angle alternates). After each close capture, `read_quality(gauge_px,
+frame_w, sharpness, target_px)` scores the view (gauge pixel size dominates, sharpness breaks ties) and
+decides if it's good enough (`gauge_px ≥ 0.85·target_px` and sharp). If a view fails (nav-unreachable) or
+reads **weak** (gauge too small / not detected / blurry), the engine **re-approaches the same gauge from
+the next candidate angle** (up to `read_max_attempts`, default 2) and **keeps the best crop across views**
+— so a retry can only improve the result, never worsen it. Each object records `read_px`, `read_sharpness`,
+`read_attempts` alongside `read_crop`/`read_standoff`/`read_dist`.
+
+**Ground-truth verified (maze zone_0):** gauge detected + localized to **5.7 cm** of truth; the close read
+crop is **174×168 px** vs the at-range survey crop's **56×45 px** — a **~3.7× linear / ~14× area** gain in
+readable resolution. The quality gate passed view 1 (159 px ≥ target) in a single attempt (no wasted
+re-approach); the re-approach path triggers only on a weak/failed view.
+
+## Future
+
+Hardware lever for very large spaces: a PTZ/optical-zoom camera + the Go2's articulated head (read far
+without approaching — Spot's trick). Adaptive standoff from the *measured* gauge size (bbox + depth) rather
+than the nominal `read_asset_size`. Nav-reachability hardening for hard-to-reach survey viewpoints.

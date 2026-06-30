@@ -16,6 +16,8 @@ from go2_inspection.inspect_planner import (  # noqa: E402
     wall_normal,
     inspection_pose,
     plan_reading_pose,
+    plan_reading_poses,
+    read_quality,
     make_is_free,
 )
 
@@ -58,6 +60,26 @@ def test_plan_reading_pose_arc_fallback_when_ideal_blocked():
 
 def test_plan_reading_pose_none_when_all_blocked():
     assert plan_reading_pose((5.0, 2.0), (1.0, 0.0), 0.8, is_free=lambda x, y: False) is None
+
+
+def test_plan_reading_poses_ranked_wall_normal_first():
+    poses = plan_reading_poses((5.0, 2.0), (1.0, 0.0), 0.8, is_free=lambda x, y: True, max_poses=4)
+    assert len(poses) == 4
+    assert abs(poses[0][0] - 5.8) < 1e-6 and abs(poses[0][1] - 2.0) < 1e-6  # wall-normal standoff is first
+    # alternates are off-axis (different y) for re-approach
+    assert any(abs(p[1] - 2.0) > 0.1 for p in poses[1:])
+
+
+def test_read_quality_scoring_and_gate():
+    # gauge fills target -> ok=True; bigger+sharper -> higher score
+    s_big, ok_big = read_quality(gauge_px=130, frame_w=640, sharpness_val=200, target_px=120)
+    s_small, ok_small = read_quality(gauge_px=40, frame_w=640, sharpness_val=200, target_px=120)
+    assert ok_big is True and ok_small is False  # 130 >= 0.85*120 ok; 40 too small
+    assert s_big > s_small
+    assert read_quality(gauge_px=0, frame_w=640, sharpness_val=200, target_px=120) == (0.0, False)
+    # detected at target size but blurry -> not ok (re-approach)
+    _, ok_blur = read_quality(gauge_px=130, frame_w=640, sharpness_val=5, target_px=120, sharp_min=20)
+    assert ok_blur is False
 
 
 def test_make_is_free_reads_mask():

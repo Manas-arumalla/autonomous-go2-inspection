@@ -128,6 +128,9 @@ class ZoneInspector(Node):
         # Deliberately NOT obstacle_check_radius (1.2 m, for phantom-rejection): a read pose is ~0.8 m off
         # the wall, so a 1.2 m clearance would reject every near-wall reading pose.
         self.read_clearance = float(self.declare_parameter("read_clearance", 0.30).value)
+        # next-best-view: if a close read is poor (gauge too small / not detected / blurry), re-approach
+        # from the next candidate angle. Keeps the BEST crop across attempts (never makes it worse).
+        self.read_max_attempts = int(self.declare_parameter("read_max_attempts", 2).value)
         self.optical_frame = self.declare_parameter("optical_frame", "camera_link_optical").value
         # --- reliability: detect only while SPINNING (walking blurs the feed + mislocalizes), and double-
         #     check every projected position against the zone polygon + the saved occupancy map ---
@@ -694,9 +697,12 @@ class ZoneInspector(Node):
                 normal = ip.wall_normal(
                     self._occ_gray, (w[0], w[1]), self._map_res, self._map_ox, self._map_oy
                 )
-                pose = ip.plan_reading_pose((w[0], w[1]), normal, d, is_free, arc_deg=self.read_arc_deg)
-                if pose is not None:
-                    targets.append({"obj": o, "pose": pose, "d": d})
+                poses = ip.plan_reading_poses(
+                    (w[0], w[1]), normal, d, is_free,
+                    arc_deg=self.read_arc_deg, max_poses=max(1, self.read_max_attempts),
+                )
+                if poses:
+                    targets.append({"obj": o, "poses": poses, "d": d, "attempt": 0, "best": None})
                 else:
                     self.get_logger().warn(
                         f"read-approach: no reachable pose for gauge @ ({w[0]:.1f},{w[1]:.1f}); skip"
@@ -721,12 +727,17 @@ class ZoneInspector(Node):
         self.nav_settle_ticks = int(self.nav_settle / 0.1)
         self.state = "READ_NAV"
 
+    def _cur_read_pose(self):
+        t = self._read_targets[self._read_i]
+        return t["poses"][min(t["attempt"], len(t["poses"]) - 1)]
+
     def _st_READ_NAV(self):
         if self.nav_settle_ticks > 0:
             self.nav_settle_ticks -= 1
             self.stop()
             return
-        x, y, yaw = self._read_targets[self._read_i]["pose"]
+        t = self._read_targets[self._read_i]
+        x, y, yaw = self._cur_read_pose()
         if self.nav_done is None:
             if not self.nav.wait_for_server(timeout_sec=0.1):
                 self.get_logger().warn("read-approach: waiting for Nav2 ...", throttle_duration_sec=5.0)
@@ -739,7 +750,8 @@ class ZoneInspector(Node):
             g.pose.pose.orientation.z = math.sin(yaw / 2)
             g.pose.pose.orientation.w = math.cos(yaw / 2)
             self.get_logger().info(
-                f"read-approach {self._read_i + 1}/{len(self._read_targets)}: NAV -> ({x:.1f},{y:.1f})"
+                f"read-approach {self._read_i + 1}/{len(self._read_targets)} "
+                f"(view {t['attempt'] + 1}/{len(t['poses'])}): NAV -> ({x:.1f},{y:.1f})"
             )
             self.nav_done = False
             gen = self._nav_gen
@@ -749,8 +761,7 @@ class ZoneInspector(Node):
         if self.nav_done == "reject" or (self.nav_done is True and self.nav_status != 4):
             p, _ = self.pose()
             if p is None or np.linalg.norm(p - np.array([x, y])) > 0.8:
-                self.get_logger().warn(f"read-approach {self._read_i + 1}: nav failed; skip")
-                self._read_advance()
+                self._read_next_view("nav failed")
                 return
             self._begin_read_capture()  # close enough despite a non-SUCCEEDED status
             return
@@ -758,8 +769,7 @@ class ZoneInspector(Node):
             self._begin_read_capture()
             return
         if self.nav_ticks * 0.1 > self.nav_timeout:
-            self.get_logger().warn(f"read-approach {self._read_i + 1}: nav timeout; skip")
-            self._read_advance()
+            self._read_next_view("nav timeout")
 
     def _begin_read_capture(self):
         self.stop()
@@ -780,31 +790,76 @@ class ZoneInspector(Node):
             return
         from go2_inspection import inspect_planner as ip
 
-        o = self._read_targets[self._read_i]["obj"]
+        t = self._read_targets[self._read_i]
         if self._read_frames:
-            best = max(
+            best_frame = max(
                 self._read_frames, key=lambda im: ip.sharpness(cv2.cvtColor(im, cv2.COLOR_RGB2GRAY))
             )
-            # re-detect on the sharp close frame for a TIGHT crop; fall back to a centred crop
-            bbox = None
+            sharp = ip.sharpness(cv2.cvtColor(best_frame, cv2.COLOR_RGB2GRAY))
+            H, W = best_frame.shape[:2]
+            # re-detect on the sharp close frame -> tight crop + how big the gauge is now (read quality)
+            bbox, gauge_px = None, 0
             if self.model is not None:
                 try:
-                    dets = detect_utils.infer(self.model, cv2.cvtColor(best, cv2.COLOR_RGB2BGR))
+                    dets = detect_utils.infer(self.model, cv2.cvtColor(best_frame, cv2.COLOR_RGB2BGR))
                     gd = [dd for dd in dets if detect_utils.is_gauge(dd[0])]
                     if gd:
                         bbox = max(gd, key=lambda dd: (dd[2][2] - dd[2][0]) * (dd[2][3] - dd[2][1]))[2]
+                        gauge_px = int(bbox[2] - bbox[0])
                 except Exception as e:  # noqa: BLE001
                     self.get_logger().warn(f"read-approach re-detect failed: {e}")
-            H, W = best.shape[:2]
             if bbox is None:  # centred fallback (we navigated to face the gauge)
                 bbox = [int(W * 0.30), int(H * 0.20), int(W * 0.70), int(H * 0.80)]
-            self._save_read_crop(best, bbox, o)
-            o["read_standoff"] = [round(v, 2) for v in self._read_targets[self._read_i]["pose"]]
-            o["read_dist"] = round(self._read_targets[self._read_i]["d"], 2)
+            score, ok = ip.read_quality(gauge_px, W, sharp, self.read_target_px)
+            if t["best"] is None or score > t["best"]["score"]:  # keep the best view across attempts
+                t["best"] = {
+                    "score": score, "frame": best_frame, "bbox": bbox, "gauge_px": gauge_px,
+                    "sharp": round(sharp, 1), "pose": self._cur_read_pose(),
+                }
             self.get_logger().info(
-                f"read-approach {self._read_i + 1}: captured close read crop -> {o.get('read_crop')}"
+                f"read-approach {self._read_i + 1} view {t['attempt'] + 1}: gauge {gauge_px}px "
+                f"sharp {sharp:.0f} -> {'OK' if ok else 'weak'}"
             )
+            if ok or t["attempt"] + 1 >= min(len(t["poses"]), self.read_max_attempts):
+                self._finalize_read(t)
+                self._read_advance()
+                return
+            self._read_next_view("weak read")
+            return
         self._read_advance()
+
+    def _read_next_view(self, reason):
+        """Next-best-view: re-approach the SAME gauge from the next candidate angle (the planner's ranked
+        list) when a view fails or reads poorly. The best crop across views is always kept, so a retry can
+        only improve the result, never worsen it."""
+        t = self._read_targets[self._read_i]
+        if t["attempt"] + 1 < min(len(t["poses"]), self.read_max_attempts):
+            t["attempt"] += 1
+            self.get_logger().warn(
+                f"read-approach {self._read_i + 1}: {reason}; re-approach (view {t['attempt'] + 1})"
+            )
+            self._begin_read_nav()
+        else:
+            if t.get("best"):
+                self._finalize_read(t)
+            else:
+                self.get_logger().warn(f"read-approach {self._read_i + 1}: {reason}; no usable view; skip")
+            self._read_advance()
+
+    def _finalize_read(self, t):
+        b, o = t.get("best"), t["obj"]
+        if not b:
+            return
+        self._save_read_crop(b["frame"], b["bbox"], o)
+        o["read_standoff"] = [round(v, 2) for v in b["pose"]]
+        o["read_dist"] = round(t["d"], 2)
+        o["read_px"] = b["gauge_px"]
+        o["read_sharpness"] = b["sharp"]
+        o["read_attempts"] = t["attempt"] + 1
+        self.get_logger().info(
+            f"read-approach {self._read_i + 1}: BEST {b['gauge_px']}px after {t['attempt'] + 1} view(s) "
+            f"-> {o.get('read_crop')}"
+        )
 
     def _read_advance(self):
         self._read_i += 1

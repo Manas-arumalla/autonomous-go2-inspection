@@ -5,6 +5,28 @@ Running history of milestones, checkpoints, and decisions. Newest at top.
 
 ---
 
+## CHECKPOINT 60 — Closed-loop read: next-best-view re-approach + read-quality scoring — 2026-06-30
+**Status:** 🟢 Upgraded the read step into a closed loop (re-approach a gauge from another angle if the
+first close view is weak) + per-gauge read-quality scoring. Opt-in, additive, ground-truth-verified. 32
+tests pass.
+
+- **`inspect_planner`:** `plan_reading_poses` returns a **ranked** list of reachable poses (wall-normal
+  first, then nearest-angle alternates); `plan_reading_pose` now wraps it. New `read_quality(gauge_px,
+  frame_w, sharpness, target_px)` → (score, ok): score ranks views (gauge size dominates, sharpness breaks
+  ties), ok = gauge ≥ 0.85·target_px AND sharp. **+2 tests (32 total).**
+- **`zone_inspector` READ phase → closed loop:** per gauge, try the ranked candidate poses; after each
+  capture, re-detect → score; if **weak** (too small / not detected / blurry) or the nav fails, **re-approach
+  from the next candidate angle** (`read_max_attempts`, default 2), always **keeping the best view** (a
+  retry can only help). Each object now records `read_px` / `read_sharpness` / `read_attempts`.
+  `gauge_inspector` already prefers `read_crop`.
+- **GROUND-TRUTH VERIFIED (live, maze zone_0):** gauge detected + localized to **5.7 cm** of GT (5.85,2.0);
+  quality gate passed view 1 (**gauge 159 px**, sharp 367) in 1 attempt — no wasted re-approach. Readability
+  gain, measured: **survey crop 56×45 px → close read crop 174×168 px ≈ 3.7× linear / 14× area.** Proves the
+  approach turns a barely-readable blob into a crisp dial.
+- Default OFF (`read_approach:=false`) ⇒ nothing in the working path changed. ADR-017 updated; build clean.
+
+---
+
 ## CHECKPOINT 59 — Real YOLOE detection + detect-then-approach (ADR-017) — 2026-06-30
 **Status:** 🟢 Got REAL open-vocab detection working end-to-end, then built the industrial-scale fix for
 reading in large rooms: **detect-then-approach** (resolution-driven close reading). Opt-in; 30 tests pass.

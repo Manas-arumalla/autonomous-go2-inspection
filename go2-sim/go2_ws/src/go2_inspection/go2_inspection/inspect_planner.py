@@ -68,25 +68,48 @@ def inspection_pose(asset_xy, normal, d):
     return (px, py, yaw)
 
 
-def plan_reading_pose(asset_xy, normal, d, is_free, arc_deg=60.0, step_deg=15.0):
-    """Pick a REACHABLE reading pose: try the wall-normal standoff, then rotate the standoff direction
-    around the asset within ±arc_deg (in step_deg increments) until `is_free(x, y)` holds — so a blocked
-    ideal pose degrades to the nearest free viewing angle instead of stranding the robot. Returns
-    (x, y, yaw) or None if nothing in the arc is free. `is_free(x, y) -> bool` tests the costmap/occupancy
-    (free + clearance)."""
+def plan_reading_poses(asset_xy, normal, d, is_free, arc_deg=60.0, step_deg=15.0, max_poses=4):
+    """RANKED list of reachable reading poses: the wall-normal standoff first, then the nearest-angle
+    alternates (rotating the standoff direction around the asset within ±arc_deg). Used for next-best-view
+    re-approach — if the first pose yields a poor read (glare/occlusion/too small), the engine tries the
+    next. Returns up to `max_poses` (x, y, yaw); [] if nothing in the arc is free. `is_free(x, y) -> bool`
+    tests the costmap/occupancy (free + footprint clearance)."""
     base = math.atan2(normal[1], normal[0])
     offsets = [0.0]
     a = step_deg
     while a <= arc_deg + 1e-6:
         offsets += [a, -a]
         a += step_deg
+    out = []
     for off in offsets:
         ang = base + math.radians(off)
         n = (math.cos(ang), math.sin(ang))
         x, y, yaw = inspection_pose(asset_xy, n, d)
         if is_free(x, y):
-            return (x, y, yaw)
-    return None
+            out.append((x, y, yaw))
+            if len(out) >= max_poses:
+                break
+    return out
+
+
+def plan_reading_pose(asset_xy, normal, d, is_free, arc_deg=60.0, step_deg=15.0):
+    """The single best reachable reading pose (the wall-normal standoff, or nearest free angle). Returns
+    (x, y, yaw) or None. Thin wrapper over plan_reading_poses for callers that want just the first."""
+    poses = plan_reading_poses(asset_xy, normal, d, is_free, arc_deg, step_deg, max_poses=1)
+    return poses[0] if poses else None
+
+
+def read_quality(gauge_px, frame_w, sharpness_val, target_px, sharp_min=20.0):
+    """Score a close read crop and decide if it's good enough to stop re-approaching. `gauge_px` = detected
+    gauge width in px (0 if not detected), `frame_w` = image width, `sharpness_val` = variance-of-Laplacian.
+    Returns (score, ok): score ranks attempts (bigger, sharper = better) so the best crop is kept; ok is
+    True when the gauge is detected at >= target_px and the frame is sharp enough (stop early)."""
+    if gauge_px <= 0 or frame_w <= 0:
+        return (0.0, False)
+    size_ratio = gauge_px / float(target_px)
+    score = gauge_px * (1.0 + min(sharpness_val, 500.0) / 500.0)  # size dominates, sharpness breaks ties
+    ok = size_ratio >= 0.85 and sharpness_val >= sharp_min
+    return (score, ok)
 
 
 def make_is_free(plausible_mask, res, ox, oy):
