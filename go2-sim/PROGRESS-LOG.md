@@ -26,9 +26,14 @@ reading in large rooms: **detect-then-approach** (resolution-driven close readin
   default OFF): after the spin, per detected gauge → plan close pose → Nav2 → stop → burst → sharpest →
   re-detect tight crop → save `read_crop` + `read_standoff`. `gauge_inspector` prefers the close `read_crop`.
   This is how Spot/ANYmal do it (navigate-close + frame), and it makes reading **scale-invariant**.
-- **30 unit tests pass** (+7 planner). Build clean. *Live `read_approach` run pending a fresh sim — this
-  session's sim degraded (rtabmap map→odom "too old" after ~40 min + many heavy nav ops), so localization
-  dropped; the engine/planner are verified by build + unit tests.*
+- **30 unit tests pass** (+7 planner). Build clean.
+- **LIVE-VERIFIED (fresh maze sim):** survey detected the gauge → `read-approach: 1/1 reachable, standoff
+  0.83 m` → Nav2 to the reading pose `(5.06, 1.84)` → burst → sharpest → saved `read_crops/…png` +
+  `read_standoff`/`read_dist` on the object. The close crop is a **crisp, readable dial** (VOLTAGE 0–500 V,
+  needle ~450 V) vs a ~25 px blob at survey range — exactly the win. **Bug found + fixed in the live run:**
+  reachability first reused `self._plausible` (dilated by the 1.2 m *phantom-rejection* radius), which
+  rejected every near-wall reading pose → built a separate mask dilated by `read_clearance` (0.30 m, the
+  robot footprint) instead.
 - **Note (next):** a **next-best-view re-approach** on low-confidence reads + nav-reachability hardening
   (the zone_2/3 failures); optional PTZ/zoom-camera hardware for very large spaces.
 

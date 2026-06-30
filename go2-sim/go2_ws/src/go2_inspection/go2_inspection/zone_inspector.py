@@ -124,6 +124,10 @@ class ZoneInspector(Node):
         self.read_dmax = float(self.declare_parameter("read_dmax", 1.2).value)
         self.read_arc_deg = float(self.declare_parameter("read_arc_deg", 60.0).value)
         self.read_burst = int(self.declare_parameter("read_burst", 5).value)  # frames -> pick the sharpest
+        # reachability clearance for the READING pose = the robot's footprint half-width + margin (~0.3 m).
+        # Deliberately NOT obstacle_check_radius (1.2 m, for phantom-rejection): a read pose is ~0.8 m off
+        # the wall, so a 1.2 m clearance would reject every near-wall reading pose.
+        self.read_clearance = float(self.declare_parameter("read_clearance", 0.30).value)
         self.optical_frame = self.declare_parameter("optical_frame", "camera_link_optical").value
         # --- reliability: detect only while SPINNING (walking blurs the feed + mislocalizes), and double-
         #     check every projected position against the zone polygon + the saved occupancy map ---
@@ -676,11 +680,15 @@ class ZoneInspector(Node):
             d = ip.standoff_distance(
                 self.K[0], self.read_asset_size, self.read_target_px, self.read_dmin, self.read_dmax
             )
-            is_free = (
-                ip.make_is_free(self._plausible, self._map_res, self._map_ox, self._map_oy)
-                if (self.validate_map and self._plausible is not None)
-                else (lambda x, y: True)
-            )
+            # reachability mask = obstacles dilated by the robot footprint clearance (NOT the 1.2 m
+            # phantom-rejection radius, which would reject every near-wall reading pose)
+            if self._occ_gray is not None:
+                nf = (self._occ_gray < 250).astype(np.uint8)
+                rc = max(1, int(self.read_clearance / max(self._map_res, 1e-6)))
+                reach = cv2.dilate(nf, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * rc + 1, 2 * rc + 1)))
+                is_free = ip.make_is_free(reach, self._map_res, self._map_ox, self._map_oy)
+            else:
+                is_free = lambda x, y: True  # noqa: E731
             for o in gauges:
                 w = o["world"]
                 normal = ip.wall_normal(
