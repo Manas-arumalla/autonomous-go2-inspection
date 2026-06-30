@@ -47,7 +47,6 @@
         <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
           <pbr><metal>
             <albedo_map>/home/manas-reddy/.go2_maze_tex/gauge_00.png</albedo_map>
-            <emissive_map>/home/manas-reddy/.go2_maze_tex/gauge_00.png</emissive_map>
             <metalness>0.0</metalness><roughness>1.0</roughness>
           </metal></pbr>
         </material>
@@ -60,7 +59,6 @@
         <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
           <pbr><metal>
             <albedo_map>/home/manas-reddy/.go2_maze_tex/gauge_01.png</albedo_map>
-            <emissive_map>/home/manas-reddy/.go2_maze_tex/gauge_01.png</emissive_map>
             <metalness>0.0</metalness><roughness>1.0</roughness>
           </metal></pbr>
         </material>
@@ -73,7 +71,6 @@
         <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
           <pbr><metal>
             <albedo_map>/home/manas-reddy/.go2_maze_tex/gauge_02.png</albedo_map>
-            <emissive_map>/home/manas-reddy/.go2_maze_tex/gauge_02.png</emissive_map>
             <metalness>0.0</metalness><roughness>1.0</roughness>
           </metal></pbr>
         </material>
@@ -86,7 +83,6 @@
         <material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><specular>0 0 0 1</specular>
           <pbr><metal>
             <albedo_map>/home/manas-reddy/.go2_maze_tex/gauge_03.png</albedo_map>
-            <emissive_map>/home/manas-reddy/.go2_maze_tex/gauge_03.png</emissive_map>
             <metalness>0.0</metalness><roughness>1.0</roughness>
           </metal></pbr>
         </material>
