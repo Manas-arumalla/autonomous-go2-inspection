@@ -5,6 +5,25 @@ Running history of milestones, checkpoints, and decisions. Newest at top.
 
 ---
 
+## CHECKPOINT 54 — M7b polish: de-emissive gauges, get_events service, gauge-score tests — 2026-06-30
+**Status:** 🟢 Three small "exceed both" items, each verified. 23 unit tests pass; 14 mission_control
+services.
+
+- **Sim realism — de-emissive maze gauges:** the 4 gauges used the same texture as `<albedo_map>` *and*
+  `<emissive_map>`, so they self-glowed at full brightness regardless of lighting (over-exposed, trivially
+  detectable). Dropped the `emissive_map` → gauges are now **scene-lit** (albedo + PBR roughness). maze.sdf
+  stays well-formed; `go2_worlds` rebuilt. Geometry + textures unchanged. *(depth-noise realism deferred —
+  would touch the working RGBD camera config.)*
+- **`get_events` service (mission_control, now 14 services):** returns the full mission FSM event history
+  `[{seq,t,state,kind,zone?,data?}]` + current phase — the replayable stream for a dashboard/MCP. Read-only.
+  Verified live: `get_events → "5 events; phase=DONE"`; `get_status` regression clean.
+- **Gauge-read `score()` made testable:** refactored `gauge_inspector.score()` into a pure
+  `score_readings(readings, gt, value_tol_pct)` that **returns** `{n, type_ok, unit_ok, value_ok, rows}`
+  (the printed operator table is unchanged + still emitted). **+2 tests** (type/unit case-normalization,
+  value-within-span tolerance, left→right lateral pairing). Backward-compatible (the CLI ignored the return).
+
+---
+
 ## CHECKPOINT 53 — Mission state machine + structured event stream (M7b) — 2026-06-30
 **Status:** 🟢 Added an explicit mission FSM + a structured JSONL event stream over the (previously
 print-only) async orchestration. Wired defensively so observability can never break control flow.

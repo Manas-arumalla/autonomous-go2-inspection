@@ -106,6 +106,7 @@ class MissionControl(Node):
             ("get_zone_gauges", self.get_zone_gauges),
             ("get_report", self.get_report),
             ("get_status", self.get_status),
+            ("get_events", self.get_events),
         ]
         for name, fn in svc:
             self.create_service(ZoneTask, name, fn, callback_group=cb)
@@ -724,6 +725,18 @@ class MissionControl(Node):
             True,
             f"frontier={running} busy={action}{tstat}{phase} known={pct}% (unknown={unknown})",
             st,
+        )
+
+    def get_events(self, req, res):
+        """Full mission FSM event history (the structured progress stream the dashboard/MCP can replay):
+        [{seq, t, state, kind, zone?, data?}]. zone_id is ignored. Read-only; empty if no mission has run."""
+        try:
+            events = read_events(EVENTS)
+        except Exception:
+            events = []
+        phase = events[-1]["state"] if events else None
+        return self._ok(
+            res, True, f"{len(events)} events; phase={phase}", {"events": events, "phase": phase}
         )
 
 

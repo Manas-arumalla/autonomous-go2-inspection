@@ -94,11 +94,12 @@ def rows_to_csv(zone, readings, out_csv):
     return out_csv
 
 
-def score(readings, gt_path):
-    """Score readings vs a ground-truth json (matched by left->right lateral order)."""
-    gt = json.load(open(gt_path))
+def score_readings(readings, gt, value_tol_pct=5.0):
+    """Pure scorer (no file IO): match readings to ground-truth left->right by lateral position, and score
+    type/unit/value(within value_tol_pct of the dial span) accuracy. Returns
+    {n, type_ok, unit_ok, value_ok, rows:[{id,type_ok,unit_ok,read,true,err_pct,value_ok}]}."""
     ordered = sorted(readings, key=lambda gr: gr[0].get("lateral", 0.0))   # tolerant: new segmenter or old
-    print(f"\n  {'ID':<12}{'type ok':<9}{'unit ok':<9}{'read':>8}{'true':>8}{'err%':>7}")
+    rows = []
     n_type = n_unit = n_val = 0
     for (g, r), t in zip(ordered, gt):
         type_ok = r.get("type", "").upper() == t["type"].upper()
@@ -106,11 +107,39 @@ def score(readings, gt_path):
         rd, tv = float(r.get("reading", 0)), float(t["true_reading"])
         span = float(t["range_max"]) - float(t["range_min"]) or 1.0
         err = abs(rd - tv) / span * 100.0
-        val_ok = err <= 5.0
+        val_ok = err <= value_tol_pct
         n_type += type_ok; n_unit += unit_ok; n_val += val_ok
-        print(f"  {g['id']:<12}{str(type_ok):<9}{str(unit_ok):<9}{rd:>8.1f}{tv:>8.1f}{err:>6.1f}%")
-    n = len(gt)
-    print(f"\n  type {n_type}/{n}  unit {n_unit}/{n}  value(<=5% span) {n_val}/{n}")
+        rows.append(
+            {
+                "id": g.get("id"),
+                "type_ok": bool(type_ok),
+                "unit_ok": bool(unit_ok),
+                "read": rd,
+                "true": tv,
+                "err_pct": round(err, 1),
+                "value_ok": bool(val_ok),
+            }
+        )
+    return {"n": len(gt), "type_ok": n_type, "unit_ok": n_unit, "value_ok": n_val, "rows": rows}
+
+
+def score(readings, gt_path, value_tol_pct=5.0):
+    """Score readings vs a ground-truth json (matched by left->right lateral order); print a table and
+    return the structured result (see score_readings)."""
+    gt = json.load(open(gt_path))
+    res = score_readings(readings, gt, value_tol_pct)
+    print(f"\n  {'ID':<12}{'type ok':<9}{'unit ok':<9}{'read':>8}{'true':>8}{'err%':>7}")
+    for row in res["rows"]:
+        print(
+            f"  {str(row['id']):<12}{str(row['type_ok']):<9}{str(row['unit_ok']):<9}"
+            f"{row['read']:>8.1f}{row['true']:>8.1f}{row['err_pct']:>6.1f}%"
+        )
+    n = res["n"]
+    print(
+        f"\n  type {res['type_ok']}/{n}  unit {res['unit_ok']}/{n}  "
+        f"value(<={value_tol_pct:.0f}% span) {res['value_ok']}/{n}"
+    )
+    return res
 
 
 def _is_gauge(name):
