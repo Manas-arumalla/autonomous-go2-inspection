@@ -24,8 +24,11 @@ Verified live. 21 unit tests pass.
 - **Verified live (maze, navigate-only):** the stream captured `PLANNING[zone_0] → NAVIGATING(2.93,1.96)
   → NAV_FAILED → ROLLUP → DONE(navigated:0)` — honest even when Nav2 was down, and control flow was
   unaffected. (Nav2 had dropped from an earlier-launched stack; the FSM recorded it rather than hiding it.)
-- **Next (separate, careful step):** surface the live phase via `mission_control` `get_status` /
-  a `get_events` service so MCP + a dashboard can poll it (defer — touches the working 13-service server).
+- **Phase surfaced via `get_status` (DONE):** `mission_control_server.get_status` now reads the last FSM
+  event (`read_events`, read-only + defensive) and adds `mission_phase` + `mission_event` to the status +
+  a `phase=…` tag to the message — so MCP/a dashboard polling `get_status` sees the live phase. Verified
+  live after a clean server restart: `busy=idle phase=DONE known=100.0%`. (A dedicated `get_events`
+  service to stream the full history can come later.)
 
 ---
 

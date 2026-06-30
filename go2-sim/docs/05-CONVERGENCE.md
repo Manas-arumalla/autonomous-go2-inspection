@@ -157,9 +157,10 @@ unique pieces. The end state is ONE clean, advanced tree — not two.
   (`~/gauges/mission_events.jsonl`) + in-memory log; `read_events()` reads it back. Wired into
   `inspection_mission` via a defensive `_ev()` (observability can never raise into the mission). **+4
   tests (21 total).** Verified live: the stream captured `PLANNING→NAVIGATING→NAV_FAILED→ROLLUP→DONE`
-  honestly with Nav2 down. **Still pending:** surface the phase via `mission_control` get_status/get_events
-  (touches the working server — separate careful step), `twist_mux`+`collision_monitor`, gauge-read
-  accuracy via `score()`, perception-sim realism.
+  honestly with Nav2 down. **Phase now surfaced via `get_status`** (read-only `read_events` + defensive):
+  status gains `mission_phase`/`mission_event` + a `phase=…` message tag; verified live after a clean
+  server restart (`busy=idle phase=DONE`). **Still pending:** a dedicated `get_events` history service,
+  `twist_mux`+`collision_monitor`, gauge-read accuracy via `score()`, perception-sim realism.
 - **M6 DEFERRED (not blanket-deletable):** a full launch-graph trace shows the legacy launches are
   entangled with the live path — `inspection_nav → nav2, rtabmap_slam → go2_champ, octomap` (octomap
   live) and `explore → nav2, slam → go2_champ, sim` (slam + sim live via frontier exploration). Only

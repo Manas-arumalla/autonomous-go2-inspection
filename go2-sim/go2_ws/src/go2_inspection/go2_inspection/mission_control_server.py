@@ -39,9 +39,11 @@ from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
 from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import Twist
 from go2_inspection_interfaces.srv import ZoneTask
+from go2_inspection.mission_fsm import read_events
 
 GAUGES_ROOT = os.path.expanduser("~/gauges")
 MANIFEST = os.path.join(GAUGES_ROOT, "facility_inspection_manifest.json")
+EVENTS = os.path.join(GAUGES_ROOT, "mission_events.jsonl")  # mission FSM event stream (ADR-016 M7b)
 # This package's directory, which ships the map_grab / npz_to_map save-map helpers.
 PKG_DIR = os.path.dirname(os.path.realpath(__file__))
 DEFAULT_WS = os.environ.get(
@@ -703,11 +705,24 @@ class MissionControl(Node):
             "last": last,
             "zones_file": self.zones_file,
         }
+        # Surface the driving mission's live phase from the FSM event stream (ADR-016 M7b). Read-only +
+        # defensive: a missing/garbled stream just omits the phase, never affects the status response.
+        try:
+            ev = read_events(EVENTS, last=1)
+        except Exception:
+            ev = []
+        if ev:
+            e = ev[0]
+            st["mission_phase"] = e.get("state")
+            st["mission_event"] = {
+                k: e.get(k) for k in ("seq", "kind", "zone", "data") if e.get(k) is not None
+            }
         tstat = f" task={task['status']}" if task else ""
+        phase = f" phase={st['mission_phase']}" if ev else ""
         return self._ok(
             res,
             True,
-            f"frontier={running} busy={action}{tstat} known={pct}% (unknown={unknown})",
+            f"frontier={running} busy={action}{tstat}{phase} known={pct}% (unknown={unknown})",
             st,
         )
 
