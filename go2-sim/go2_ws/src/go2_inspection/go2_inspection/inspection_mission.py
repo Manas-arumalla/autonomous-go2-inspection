@@ -58,6 +58,9 @@ class Mission(Node):
         self.read = bool(
             self.declare_parameter("read", False).value
         )  # True = also Claude-read detected gauges per zone (ADR-016 M4)
+        self.read_approach = bool(
+            self.declare_parameter("read_approach", False).value
+        )  # True = drive close to each detected gauge for a high-res read crop (ADR-017)
         self.nav = ActionClient(self, NavigateToPose, "navigate_to_pose")
 
     def goto(self, x, y, yaw=0.0, timeout=200.0, label=""):
@@ -121,7 +124,7 @@ def _run(cmd, timeout, label):
         return False
 
 
-def inspect_zone(zone_id, zones_file, map_yaml):
+def inspect_zone(zone_id, zones_file, map_yaml, read_approach=False):
     """zone_inspector runs YOLOE LIVE during a viewpoint+spin scan and writes crops + detections.json +
     objects.json + zone_map.png + report.{md,csv} itself. Returns the objects.json dict (or None)."""
     zone_dir = os.path.join(GAUGES_ROOT, zone_id)
@@ -139,6 +142,8 @@ def inspect_zone(zone_id, zones_file, map_yaml):
         f"zones_file:={zones_file}",
         "-p",
         f"map_yaml:={map_yaml}",
+        "-p",
+        f"read_approach:={'true' if read_approach else 'false'}",  # detect-then-approach close reading (ADR-017)
     ]
     if not _run(cmd, 900, f"inspect {zone_id}"):
         return None
@@ -237,7 +242,7 @@ def main(args=None):
             results.append({"zone": zid, "nav": True, "n_objects": 0})
             continue
         _ev(fsm, "to", MissionState.INSPECTING, zone=zid)
-        oj = inspect_zone(zid, m.zones_file, m.map_yaml)
+        oj = inspect_zone(zid, m.zones_file, m.map_yaml, m.read_approach)
         n = oj.get("n_objects", 0) if oj else 0
         _ev(fsm, "emit", "INSPECT_DONE", zone=zid, data={"n_objects": n})
         # gauge-reading layer: if read:=true and a key+venv are present, Claude reads each detected gauge

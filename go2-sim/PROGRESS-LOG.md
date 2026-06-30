@@ -5,6 +5,31 @@ Running history of milestones, checkpoints, and decisions. Newest at top.
 
 ---
 
+## CHECKPOINT 62 — Full autonomous mission + close-approach FP rejection — 2026-06-30
+**Status:** 🟢 Ran the complete detect-then-approach mission end-to-end across the maze (real-time,
+autonomous) + added opt-in false-positive rejection by close re-observation. Build clean, 32 tests, default
+paths unchanged.
+
+- **Close-approach FP rejection (opt-in, no ground truth):** the read-approach re-detects the gauge from a
+  close fronto-parallel pose; if every NBV view finds nothing (`read_px==0`) the survey hit is **refuted**
+  (`read_confirmed=False`), else **confirmed**. `read_drop_unconfirmed` (default **OFF**) drops the refuted.
+  Correctly refuted a real survey FP at (5.54,0.88) in one run; default-off is deliberate (see the honest
+  finding below).
+- **Full-mission wiring:** `inspection_mission` now forwards `read_approach` to `zone_inspector` (the
+  always-on reach-check applies automatically), so the facility mission runs the whole pipeline per zone.
+- **LIVE FULL MISSION (maze, autonomous, real-time):** HOME → **zone_0 (1 gauge)** → **zone_1 (1 gauge)** →
+  zone_2/zone_3 (**nav-unreachable, skipped gracefully**) → facility report. Ground truth (benchmark vs
+  maze.sdf): **precision 1.0, 9.8 cm**, recall 0.5 (the 2 unreachable zones). **No-API-key reading
+  demonstrated:** the robot produced the crops, and an agent read zone_1's with vision = **Temperature ≈
+  75 °C** (the MCP/agent path, no key).
+- **Honest findings (verified live):** (1) the close re-detection can FALSE-NEGATIVE a *real* gauge — zone_0
+  read `read_px=0` because the low gauge fell **below the camera's vertical FOV** at the close standoff →
+  validates `read_drop_unconfirmed` default-off + a future FOV-aware standoff / camera-tilt. (2) the
+  mission's *first hop* to a zone (before zone_inspector's reach-check) still timed out on the hard maze
+  zone_2/zone_3 → extend the reachability pre-check to the zone-entry nav.
+
+---
+
 ## CHECKPOINT 61 — Adaptive standoff (measured size) + nav-reachability pre-check — 2026-06-30
 **Status:** 🟢 Two robustness upgrades, both live-verified + ground-truth-checked (via the SDF-parsing
 benchmark — no hardcoded values). Opt-in / additive; 32 tests pass.

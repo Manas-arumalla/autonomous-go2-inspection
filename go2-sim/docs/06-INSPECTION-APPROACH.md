@@ -100,11 +100,33 @@ re-approach); the re-approach path triggers only on a weak/failed view.
   Opt-in via `vp_reach_check` (default on). *Verified live:* pre-checked 2 viewpoints, both reachable, ordered
   by cost.
 
+## Close-approach false-positive rejection (implemented, opt-in)
+
+Independent corroboration — **no ground truth.** The read-approach re-detects the gauge from a close,
+fronto-parallel, stationary pose (the same model on far better data). If every NBV view there finds nothing
+(`read_px == 0`), the survey detection is **refuted** and the object is marked `read_confirmed = False`;
+if any view re-detects it, `read_confirmed = True`. `read_drop_unconfirmed` (default **OFF**) then drops the
+refuted ones. Default-off is deliberate, and a live run proved why: a **real** zone_0 gauge once read
+`read_px = 0` because it fell **below the camera's vertical FOV** at the close standoff (low gauge z≈0.30 m,
+higher pitched camera) — so dropping on `read_px==0` carries a false-negative risk; we record confirmation
+honestly and only drop when the operator opts in. It correctly refuted an actual survey FP at (5.54, 0.88)
+in another run.
+
+## Full autonomous mission (wired)
+
+`inspection_mission` forwards `read_approach` to `zone_inspector`, so the facility mission runs the whole
+detect-then-approach pipeline per zone (the always-on reach-check applies automatically). A live end-to-end
+maze run: HOME → zone_0 (1 gauge) → zone_1 (1 gauge, read by an agent's vision as **Temperature ≈ 75 °C**,
+no API key) → zone_2/zone_3 (nav-unreachable, **skipped gracefully**) → facility report. Ground truth
+(benchmark vs maze.sdf): **precision 1.0, 9.8 cm**, recall 0.5 (the two unreachable zones).
+
 ## Future
 
-- **Close-approach false-positive rejection:** the read-approach re-detects the gauge at the close pose; if
-  it finds nothing (`read_px == 0`), the survey detection was almost certainly a false positive (a real gauge
-  is trivially detected from 0.8 m). Observed live: a survey FP at (5.54, 0.88) read `read_px=0`. Use this to
-  drop unconfirmed detections and lift precision.
+- **FOV-aware standoff / camera pointing:** at a close standoff a low- or high-mounted gauge can leave the
+  fixed camera's vertical FOV (observed on zone_0). Fix by including the gauge height vs camera height in the
+  standoff, and/or tilting the Go2's head/camera at the gauge.
+- **First-hop reachability:** the mission's *initial* nav to a zone (before zone_inspector's reach-check)
+  still timed out on the hard-to-reach maze zone_2/zone_3 — extend the `ComputePathToPose` pre-check to the
+  mission's zone-entry nav so unreachable zones are reported, not retried.
 - Hardware lever for very large spaces: a PTZ/optical-zoom camera + the Go2's articulated head (read far
   without approaching — Spot's trick).

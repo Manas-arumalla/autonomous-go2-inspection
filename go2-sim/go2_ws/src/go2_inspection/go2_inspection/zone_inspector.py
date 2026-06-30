@@ -131,6 +131,10 @@ class ZoneInspector(Node):
         # next-best-view: if a close read is poor (gauge too small / not detected / blurry), re-approach
         # from the next candidate angle. Keeps the BEST crop across attempts (never makes it worse).
         self.read_max_attempts = int(self.declare_parameter("read_max_attempts", 2).value)
+        # opt-in false-positive rejection: drop a gauge the close approach REACHED + photographed but could
+        # not re-detect (read_confirmed==False). Default OFF (a real gauge could read 0 if out of the close
+        # FOV / occluded) -- read_confirmed is always recorded so the data stays honest either way.
+        self.read_drop_unconfirmed = bool(self.declare_parameter("read_drop_unconfirmed", False).value)
         self.optical_frame = self.declare_parameter("optical_frame", "camera_link_optical").value
         # --- reliability: detect only while SPINNING (walking blurs the feed + mislocalizes), and double-
         #     check every projected position against the zone polygon + the saved occupancy map ---
@@ -967,6 +971,10 @@ class ZoneInspector(Node):
         o["read_px"] = b["gauge_px"]
         o["read_sharpness"] = b["sharp"]
         o["read_attempts"] = t["attempt"] + 1
+        # CONFIRMATION by re-observation: the robot reached a close, fronto-parallel pose and photographed
+        # the spot. If the same model re-detects a gauge there (best gauge_px > 0) the survey hit is
+        # CONFIRMED; if every view found nothing, it is REFUTED (a survey false positive). No ground truth.
+        o["read_confirmed"] = bool(b["gauge_px"] > 0)
         self.get_logger().info(
             f"read-approach {self._read_i + 1}: BEST {b['gauge_px']}px after {t['attempt'] + 1} view(s) "
             f"-> {o.get('read_crop')}"
@@ -1221,6 +1229,25 @@ class ZoneInspector(Node):
                     f"< {self.min_observations}x (likely phantoms)"
                 )
             self.objects = kept
+        # close-approach false-positive rejection (opt-in): drop a gauge the read-approach REACHED +
+        # photographed but could not re-detect up close (read_confirmed explicitly False). Independent
+        # corroboration by a higher-quality observation -- no ground truth. Objects never approached, or
+        # where the approach couldn't reach (read_confirmed absent/None), are left untouched (inconclusive).
+        if self.read_drop_unconfirmed:
+            unconf = [o for o in self.objects if o.get("read_confirmed") is False]
+            for o in unconf:
+                for key in ("crop", "read_crop"):
+                    if o.get(key):
+                        try:
+                            os.remove(os.path.join(d, o[key]))
+                        except OSError:
+                            pass
+            if unconf:
+                self.get_logger().info(
+                    f"{self.zone_id}: dropped {len(unconf)} unconfirmed gauge(s) -- the close approach "
+                    f"re-detected nothing there (survey false positive)"
+                )
+            self.objects = [o for o in self.objects if o.get("read_confirmed") is not False]
         avail = self.model is not None
         json.dump(
             {
