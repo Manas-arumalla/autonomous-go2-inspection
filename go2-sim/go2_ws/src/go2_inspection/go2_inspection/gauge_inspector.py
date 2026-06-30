@@ -171,7 +171,8 @@ def inspect(zone_dir, model="claude-opus-4-8", gt_path=None):
     client = anthropic.Anthropic()
     readings = []
     for g in items:
-        rel = g.get(crop_key)
+        # prefer the close, fronto-parallel read-approach crop (ADR-017) over the at-range spin crop
+        rel = (g.get("read_crop") if obj_mode else None) or g.get(crop_key)
         cp = os.path.join(zone_dir, rel) if rel else None
         if not cp or not os.path.exists(cp):
             continue

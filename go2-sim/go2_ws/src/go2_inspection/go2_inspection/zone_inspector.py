@@ -114,6 +114,16 @@ class ZoneInspector(Node):
         self.min_valid_frac = float(self.declare_parameter("min_valid_frac", 0.30).value)
         self.dedup_radius = float(self.declare_parameter("dedup_radius", 0.6).value)
         self.capture_pad = float(self.declare_parameter("capture_pad", 0.10).value)
+        # detect-then-approach (ADR-017): after the survey/spin localizes gauges, drive to a CLOSE,
+        # fronto-parallel, resolution-driven standoff per gauge and grab a high-res read crop. Default OFF
+        # (current spin-only behaviour unchanged). Scales reading to large rooms (the spin can't).
+        self.read_approach = bool(self.declare_parameter("read_approach", False).value)
+        self.read_target_px = float(self.declare_parameter("read_target_px", 120.0).value)  # px on the dial
+        self.read_asset_size = float(self.declare_parameter("read_asset_size", 0.26).value)  # gauge size (m)
+        self.read_dmin = float(self.declare_parameter("read_dmin", 0.5).value)
+        self.read_dmax = float(self.declare_parameter("read_dmax", 1.2).value)
+        self.read_arc_deg = float(self.declare_parameter("read_arc_deg", 60.0).value)
+        self.read_burst = int(self.declare_parameter("read_burst", 5).value)  # frames -> pick the sharpest
         self.optical_frame = self.declare_parameter("optical_frame", "camera_link_optical").value
         # --- reliability: detect only while SPINNING (walking blurs the feed + mislocalizes), and double-
         #     check every projected position against the zone polygon + the saved occupancy map ---
@@ -188,7 +198,10 @@ class ZoneInspector(Node):
 
         # occupancy map for position double-checking (loaded lazily in BUILD once TF/params are ready)
         self._plausible = None
+        self._occ_gray = None
         self._map_res = self._map_ox = self._map_oy = None
+        self._read_targets = []
+        self._read_i = 0
         self._map_H = self._map_W = None
 
         # CPU inference at imgsz 1280 is slow (~1-3 s/frame) -> only ~1-3 frames per object during a 0.4 rad/s
@@ -337,6 +350,7 @@ class ZoneInspector(Node):
             self.get_logger().warn(f"map position-check disabled (load failed: {e})")
             self.validate_map = False
             return
+        self._occ_gray = gray  # raw occupancy (free=254/occ=0/unknown=205) — for wall-normal estimation
         not_free = (gray < 250).astype(np.uint8)  # occupied(0) + unknown(205); free is 254
         r = max(1, int(self.obstacle_check_radius / max(res, 1e-6)))
         self._plausible = cv2.dilate(
@@ -640,7 +654,172 @@ class ZoneInspector(Node):
             self._begin_viewpoint()
         else:
             self.stop()
+            if self.read_approach:
+                self._begin_read_approach()  # detect-then-approach: close read pose per gauge (ADR-017)
+            else:
+                self._finish()
+
+    # ---------- detect-then-approach: a close, resolution-driven reading pose per gauge (ADR-017) ----------
+    def _begin_read_approach(self):
+        """The survey/spin DETECTED + 3D-localized gauges at range; now drive to a CLOSE, fronto-parallel,
+        REACHABLE standoff in front of each one (distance set by a pixel budget, direction by the wall
+        normal) and grab a high-res crop. This is what makes READING (vs detecting) work in big rooms —
+        the same navigate-close principle Spot/ANYmal use, computed automatically from the 3D positions."""
+        from go2_inspection import inspect_planner as ip
+
+        gauges = [
+            o for o in self.objects
+            if detect_utils.is_gauge(o.get("class", "")) and o.get("localized") and o.get("world")
+        ]
+        targets = []
+        if gauges and self.K is not None and self._occ_gray is not None:
+            d = ip.standoff_distance(
+                self.K[0], self.read_asset_size, self.read_target_px, self.read_dmin, self.read_dmax
+            )
+            is_free = (
+                ip.make_is_free(self._plausible, self._map_res, self._map_ox, self._map_oy)
+                if (self.validate_map and self._plausible is not None)
+                else (lambda x, y: True)
+            )
+            for o in gauges:
+                w = o["world"]
+                normal = ip.wall_normal(
+                    self._occ_gray, (w[0], w[1]), self._map_res, self._map_ox, self._map_oy
+                )
+                pose = ip.plan_reading_pose((w[0], w[1]), normal, d, is_free, arc_deg=self.read_arc_deg)
+                if pose is not None:
+                    targets.append({"obj": o, "pose": pose, "d": d})
+                else:
+                    self.get_logger().warn(
+                        f"read-approach: no reachable pose for gauge @ ({w[0]:.1f},{w[1]:.1f}); skip"
+                    )
+            self.get_logger().info(
+                f"read-approach: {len(targets)}/{len(gauges)} gauge(s) reachable; standoff {d:.2f} m"
+            )
+        elif gauges:
+            self.get_logger().warn("read-approach: no camera K / occupancy map; cannot plan; skip")
+        self._read_targets = targets
+        self._read_i = 0
+        if not targets:
             self._finish()
+            return
+        self._begin_read_nav()
+
+    def _begin_read_nav(self):
+        self.nav_done = None
+        self.nav_status = None
+        self.nav_ticks = 0
+        self._nav_gen += 1
+        self.nav_settle_ticks = int(self.nav_settle / 0.1)
+        self.state = "READ_NAV"
+
+    def _st_READ_NAV(self):
+        if self.nav_settle_ticks > 0:
+            self.nav_settle_ticks -= 1
+            self.stop()
+            return
+        x, y, yaw = self._read_targets[self._read_i]["pose"]
+        if self.nav_done is None:
+            if not self.nav.wait_for_server(timeout_sec=0.1):
+                self.get_logger().warn("read-approach: waiting for Nav2 ...", throttle_duration_sec=5.0)
+                return
+            g = NavigateToPose.Goal()
+            g.pose.header.frame_id = "map"
+            g.pose.header.stamp = rclpy.time.Time().to_msg()
+            g.pose.pose.position.x = float(x)
+            g.pose.pose.position.y = float(y)
+            g.pose.pose.orientation.z = math.sin(yaw / 2)
+            g.pose.pose.orientation.w = math.cos(yaw / 2)
+            self.get_logger().info(
+                f"read-approach {self._read_i + 1}/{len(self._read_targets)}: NAV -> ({x:.1f},{y:.1f})"
+            )
+            self.nav_done = False
+            gen = self._nav_gen
+            self.nav.send_goal_async(g).add_done_callback(lambda fut: self._nav_acc(fut, gen))
+            return
+        self.nav_ticks += 1
+        if self.nav_done == "reject" or (self.nav_done is True and self.nav_status != 4):
+            p, _ = self.pose()
+            if p is None or np.linalg.norm(p - np.array([x, y])) > 0.8:
+                self.get_logger().warn(f"read-approach {self._read_i + 1}: nav failed; skip")
+                self._read_advance()
+                return
+            self._begin_read_capture()  # close enough despite a non-SUCCEEDED status
+            return
+        if self.nav_done is True:
+            self._begin_read_capture()
+            return
+        if self.nav_ticks * 0.1 > self.nav_timeout:
+            self.get_logger().warn(f"read-approach {self._read_i + 1}: nav timeout; skip")
+            self._read_advance()
+
+    def _begin_read_capture(self):
+        self.stop()
+        self._read_settle = int(max(self.spin_settle, 0.8) / 0.1)
+        self._read_frames = []
+        self.state = "READ_CAPTURE"
+
+    def _st_READ_CAPTURE(self):
+        self.stop()  # stationary at the standoff -> no motion blur
+        if self._read_settle > 0:
+            self._read_settle -= 1
+            return
+        with self._img_lock:
+            img = None if self.img is None else self.img.copy()
+        if img is not None:
+            self._read_frames.append(img)
+        if len(self._read_frames) < self.read_burst and img is not None:
+            return
+        from go2_inspection import inspect_planner as ip
+
+        o = self._read_targets[self._read_i]["obj"]
+        if self._read_frames:
+            best = max(
+                self._read_frames, key=lambda im: ip.sharpness(cv2.cvtColor(im, cv2.COLOR_RGB2GRAY))
+            )
+            # re-detect on the sharp close frame for a TIGHT crop; fall back to a centred crop
+            bbox = None
+            if self.model is not None:
+                try:
+                    dets = detect_utils.infer(self.model, cv2.cvtColor(best, cv2.COLOR_RGB2BGR))
+                    gd = [dd for dd in dets if detect_utils.is_gauge(dd[0])]
+                    if gd:
+                        bbox = max(gd, key=lambda dd: (dd[2][2] - dd[2][0]) * (dd[2][3] - dd[2][1]))[2]
+                except Exception as e:  # noqa: BLE001
+                    self.get_logger().warn(f"read-approach re-detect failed: {e}")
+            H, W = best.shape[:2]
+            if bbox is None:  # centred fallback (we navigated to face the gauge)
+                bbox = [int(W * 0.30), int(H * 0.20), int(W * 0.70), int(H * 0.80)]
+            self._save_read_crop(best, bbox, o)
+            o["read_standoff"] = [round(v, 2) for v in self._read_targets[self._read_i]["pose"]]
+            o["read_dist"] = round(self._read_targets[self._read_i]["d"], 2)
+            self.get_logger().info(
+                f"read-approach {self._read_i + 1}: captured close read crop -> {o.get('read_crop')}"
+            )
+        self._read_advance()
+
+    def _read_advance(self):
+        self._read_i += 1
+        if self._read_i < len(self._read_targets):
+            self._begin_read_nav()
+        else:
+            self.stop()
+            self._finish()
+
+    def _save_read_crop(self, img_rgb, bbox, obj):
+        H, W = img_rgb.shape[:2]
+        x0, y0, x1, y1 = [int(v) for v in bbox]
+        pw, ph = int((x1 - x0) * self.capture_pad), int((y1 - y0) * self.capture_pad)
+        x0, y0 = max(0, x0 - pw), max(0, y0 - ph)
+        x1, y1 = min(W, x1 + pw), min(H, y1 + ph)
+        if x1 <= x0 or y1 <= y0:
+            return
+        crop_bgr = cv2.cvtColor(img_rgb[y0:y1, x0:x1].copy(), cv2.COLOR_RGB2BGR)
+        cdir = os.path.join(self.out_dir, self.zone_id, "read_crops")
+        os.makedirs(cdir, exist_ok=True)
+        fn = f"{obj['id']}.png"
+        cv2.imwrite(os.path.join(cdir, fn), crop_bgr)
+        obj["read_crop"] = f"read_crops/{fn}"
 
     # ---------- detection -> map projection -> dedup -> crop ----------
     def _process_inference(self):

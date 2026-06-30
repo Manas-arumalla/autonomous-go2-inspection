@@ -5,6 +5,35 @@ Running history of milestones, checkpoints, and decisions. Newest at top.
 
 ---
 
+## CHECKPOINT 59 — Real YOLOE detection + detect-then-approach (ADR-017) — 2026-06-30
+**Status:** 🟢 Got REAL open-vocab detection working end-to-end, then built the industrial-scale fix for
+reading in large rooms: **detect-then-approach** (resolution-driven close reading). Opt-in; 30 tests pass.
+
+- **YOLOE detection now runs for real.** Root-caused the blocker: open-vocab needs a one-time **572 MB
+  `mobileclip_blt.ts`** text-encoder download (+ the CLIP package), which the throttled sandbox kept timing
+  out. Fixed by cloning CLIP over HTTPS + local `pip install`, then letting the 572 MB download finish →
+  built the permanent **PE cache** (`~/weights/yoloe_pe_*.pt`, 36 KB). YOLOE now loads in **4 s**.
+  **Real run (maze):** zone_0 gauge detected + depth-localized to **(5.92, 1.97)** vs GT (5.85, 2.0) =
+  **7.4 cm**; zone_1 to (-2.99, -4.01) vs (-3.0, -3.85). `benchmark.py` on the real run: **precision 1.0,
+  mean localization error 0.117 m** (recall 0.5 — only 2 zones reached; zone_2/3 were Nav2 reachability
+  failures, not detection misses).
+- **Detect-then-approach (ADR-017, `docs/06-INSPECTION-APPROACH.md`).** The 360° spin can DETECT a gauge at
+  range but can't READ it in a big room — our camera has a **hard ~0.8 m max readable standoff** (`d =
+  fx·size/px`). New **`inspect_planner.py`** (pure, **7 unit tests**): resolution-driven `standoff_distance`,
+  `wall_normal` (occupancy gradient), `plan_reading_pose` (wall-normal standoff + **reachability arc-search**
+  so a blocked pose degrades to the nearest free angle instead of stranding), `make_is_free`, `sharpness`
+  (variance-of-Laplacian). Wired a **`READ_APPROACH`** phase into `zone_inspector` (opt-in `read_approach`,
+  default OFF): after the spin, per detected gauge → plan close pose → Nav2 → stop → burst → sharpest →
+  re-detect tight crop → save `read_crop` + `read_standoff`. `gauge_inspector` prefers the close `read_crop`.
+  This is how Spot/ANYmal do it (navigate-close + frame), and it makes reading **scale-invariant**.
+- **30 unit tests pass** (+7 planner). Build clean. *Live `read_approach` run pending a fresh sim — this
+  session's sim degraded (rtabmap map→odom "too old" after ~40 min + many heavy nav ops), so localization
+  dropped; the engine/planner are verified by build + unit tests.*
+- **Note (next):** a **next-best-view re-approach** on low-confidence reads + nav-reachability hardening
+  (the zone_2/3 failures); optional PTZ/zoom-camera hardware for very large spaces.
+
+---
+
 ## CHECKPOINT 58 — Obstacle-stop VERIFIED live + use_safety forwarding fix — 2026-06-30
 **Status:** 🟢 The full safety chain runs end-to-end in the live sim and **physically stops the robot at a
 wall**. Found + fixed a launch gap (`inspection_nav` wasn't forwarding `use_safety`).
