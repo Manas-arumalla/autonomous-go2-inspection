@@ -20,9 +20,11 @@ from rclpy.action import ActionClient
 from nav2_msgs.action import NavigateToPose
 
 from go2_inspection import report_utils
+from go2_inspection.mission_fsm import MissionFSM, MissionState
 
 GAUGES_ROOT = os.path.expanduser("~/gauges")
 MANIFEST = os.path.join(GAUGES_ROOT, "facility_inspection_manifest.json")
+EVENTS = os.path.join(GAUGES_ROOT, "mission_events.jsonl")  # structured mission event stream (ADR-016 M7b)
 HOME = (0.0, 0.0, 0.0)
 # Optional Claude gauge-value reading layer (ADR-016 M4): when read:=true, after zone_inspector detects +
 # crops gauges, run gauge_inspector (in the venv that has `anthropic`) to read each gauge's value into the
@@ -91,6 +93,17 @@ class Mission(Node):
             f"{label} -> {'ARRIVED' if ok else 'status ' + str(rf.result().status)}"
         )
         return ok
+
+
+def _ev(fsm, fn, *a, **k):
+    """Best-effort FSM call: the structured event stream is observability only and must NEVER raise into
+    (and break) the mission's control flow. Any FSM/IO error is swallowed."""
+    if fsm is None:
+        return
+    try:
+        getattr(fsm, fn)(*a, **k)
+    except Exception:
+        pass
 
 
 def _run(cmd, timeout, label):
@@ -186,9 +199,15 @@ def _facility_rollup(zones_file, map_yaml, results):
 def main(args=None):
     rclpy.init(args=args)
     m = Mission()
+    try:
+        fsm = MissionFSM(EVENTS)  # structured event stream for this mission (best-effort; see _ev)
+    except Exception:
+        fsm = None
     if m.goto_home:
+        _ev(fsm, "to", MissionState.PLANNING, kind="DOCK", data={"target": list(HOME)})
         ok = m.goto(*HOME, label="HOME (dock)")
         m.get_logger().info(f"=== HOME dock -> {'ARRIVED' if ok else 'FAILED'} ===")
+        _ev(fsm, "to", MissionState.DONE, data={"docked": ok})
         m.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
@@ -202,32 +221,45 @@ def main(args=None):
         f"=== MISSION START at HOME -- {len(cands)} candidate zones, {mode} "
         f"({'subset ' + ','.join(m.only) if m.only else 'area>=' + str(m.min_area)}) ==="
     )
+    _ev(fsm, "to", MissionState.PLANNING, data={"zones": [z["id"] for z in cands], "mode": mode})
     results = []
     for z in cands:
         zid = z["id"]
         gx, gy = z.get("nav_point") or z["center"]  # prefer the free-space nav point
+        _ev(fsm, "to", MissionState.NAVIGATING, zone=zid, data={"target": [round(gx, 2), round(gy, 2)]})
         if not m.goto(gx, gy, label=f"zone {zid}"):
+            _ev(fsm, "emit", "NAV_FAILED", zone=zid)
             results.append({"zone": zid, "nav": False, "n_objects": 0})
             continue
+        _ev(fsm, "emit", "ARRIVED", zone=zid)
         if not m.inspect:
             results.append({"zone": zid, "nav": True, "n_objects": 0})
             continue
+        _ev(fsm, "to", MissionState.INSPECTING, zone=zid)
         oj = inspect_zone(zid, m.zones_file, m.map_yaml)
         n = oj.get("n_objects", 0) if oj else 0
+        _ev(fsm, "emit", "INSPECT_DONE", zone=zid, data={"n_objects": n})
         # gauge-reading layer: if read:=true and a key+venv are present, Claude reads each detected gauge
         # crop into the zone report (objects.json gains a 'gauge_reading' per gauge). Off the spin loop.
         if m.read and oj and os.environ.get("ANTHROPIC_API_KEY") and os.path.exists(VENV_PY):
+            _ev(fsm, "to", MissionState.READING, zone=zid)
             _run([VENV_PY, INSPECTOR, os.path.join(GAUGES_ROOT, zid)], 300, f"read gauges {zid}")
+            _ev(fsm, "emit", "READ_DONE", zone=zid)
         m.get_logger().info(f"   {zid}: {n} objects")
         results.append({"zone": zid, "nav": True, "n_objects": n})
     if m.return_home:
+        _ev(fsm, "emit", "RETURN_HOME")
         m.goto(*HOME, label="HOME (return)")
     os.makedirs(GAUGES_ROOT, exist_ok=True)
+    _ev(fsm, "to", MissionState.ROLLUP)
     if m.inspect:
         total, rooms_ok = _facility_rollup(m.zones_file, m.map_yaml, results)
         m.get_logger().info(
             f"=== MISSION COMPLETE -> {MANIFEST} : {total} objects across {rooms_ok} zones ==="
         )
+        _ev(fsm, "to", MissionState.DONE, data={"total_objects": total, "zones_with_objects": rooms_ok})
+    else:
+        _ev(fsm, "to", MissionState.DONE, data={"navigated": sum(1 for r in results if r.get("nav"))})
     m.destroy_node()
     if rclpy.ok():
         rclpy.shutdown()

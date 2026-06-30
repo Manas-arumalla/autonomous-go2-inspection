@@ -5,6 +5,30 @@ Running history of milestones, checkpoints, and decisions. Newest at top.
 
 ---
 
+## CHECKPOINT 53 — Mission state machine + structured event stream (M7b) — 2026-06-30
+**Status:** 🟢 Added an explicit mission FSM + a structured JSONL event stream over the (previously
+print-only) async orchestration. Wired defensively so observability can never break control flow.
+Verified live. 21 unit tests pass.
+
+- **`go2_inspection/mission_fsm.py` (pure / ROS-free, CI-tested):** a strict state machine
+  `IDLE → PLANNING → NAVIGATING → INSPECTING → (READING) → [next zone] … → ROLLUP → DONE` (`ABORTED` from
+  any active phase; illegal transitions raise). Each transition appends an event
+  `{seq, t, state, kind, zone?, data?}` to an in-memory log **and** an append-only JSONL stream; a
+  `read_events()` helper reads it back for `get_status`/dashboards. **+4 unit tests** (lifecycle, illegal
+  transitions rejected, abort-from-active, JSONL round-trip).
+- **Wired into `inspection_mission.py` — additive + bulletproof:** a `_ev(fsm, …)` helper swallows every
+  FSM/IO error so the *event stream is observability only and can never raise into the mission*. The
+  mission now emits `PLANNING(zones)` → per zone `NAVIGATING(target)` → `ARRIVED`/`NAV_FAILED` →
+  `INSPECTING` → `INSPECT_DONE(n_objects)` → `READING`/`READ_DONE` → `ROLLUP` → `DONE(total)`, to
+  `~/gauges/mission_events.jsonl`.
+- **Verified live (maze, navigate-only):** the stream captured `PLANNING[zone_0] → NAVIGATING(2.93,1.96)
+  → NAV_FAILED → ROLLUP → DONE(navigated:0)` — honest even when Nav2 was down, and control flow was
+  unaffected. (Nav2 had dropped from an earlier-launched stack; the FSM recorded it rather than hiding it.)
+- **Next (separate, careful step):** surface the live phase via `mission_control` `get_status` /
+  a `get_events` service so MCP + a dashboard can poll it (defer — touches the working 13-service server).
+
+---
+
 ## CHECKPOINT 52 — Ground-truth benchmarking (M7b) + M6 deferral (safety) — 2026-06-30
 **Status:** 🟢 Added a CI-gated detection benchmark vs world ground truth (neither version had one).
 Deliberately **deferred** the legacy deletions after mapping the launch graph — they're entangled with
