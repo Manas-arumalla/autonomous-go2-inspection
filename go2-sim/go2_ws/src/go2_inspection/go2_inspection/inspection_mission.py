@@ -9,8 +9,9 @@ From HOME, for each candidate zone (from zones.yaml):
   crops, writes a per-zone report + zone_map) -> return HOME -> one facility report + facility map.
 Detection and report only (no gauge reading). Everything per-room is discovered, not configured.
 
-  ros2 launch go2_bringup mission.launch.py                 # all candidate zones
-  ros2 run go2_inspection inspection_mission --ros-args -p zones:=zone_0   # run a subset of zones
+  # recommended: bring up inspection_nav.launch.py + mission_control.launch.py, then call /run_mission
+  #   (or /inspect_zone); this node is what mission_control drives per mission.
+  ros2 run go2_inspection inspection_mission --ros-args -p zones:=zone_0   # direct: a subset of zones
 """
 
 import os, json, math, subprocess, time

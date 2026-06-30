@@ -5,6 +5,32 @@ Running history of milestones, checkpoints, and decisions. Newest at top.
 
 ---
 
+## CHECKPOINT 57 — M6 DONE: legacy wall-follower path retired — 2026-06-30
+**Status:** 🟢 Deleted the legacy wall-follower code (owner-approved) + fixed every reference. Build clean,
+4 executables, 23 tests pass, no runnable references to deleted code remain.
+
+- **Deleted (git rm — recoverable via history):** the 4 wall-follower nodes
+  `zone_sweeper` / `zone_wall_follower` / `panorama_segmenter` / `yoloe_segmenter` + their `setup.py`
+  console-script entries, and the 2 legacy launches `mission.launch.py` + `sim_mapping.launch.py`. All sat
+  **outside the active launch closure** (`inspection_nav → nav2, rtabmap_slam → go2_champ, octomap`;
+  `explore → nav2, slam → go2_champ, sim`) — verified nothing active imports or includes them. Clean-rebuilt
+  `go2_inspection` to drop the stale entry-point wrappers → `ros2 pkg executables` now lists exactly
+  **zone_inspector · inspection_mission · mission_control_server · benchmark**.
+- **Reference fixes (so nothing points at deleted code):** `setup.py` entries removed; code run-command
+  docstrings/comments updated to the converged launches (`inspection_mission.py`, `mcp_mission_server.py` ×2,
+  `gen_inspection_arena.py`, `gauge_inspector.py`); **README** fallback note → "retired in M6"; **RUN-SIM**
+  rewritten (dropped the dead §§ A–E, updated § G2 `inspect_zone` to the `zone_inspector` viewpoint-spin +
+  added `get_events`/`cancel_task`/`use_safety`/benchmark, cleaned the stale wall-follower Notes); per-package
+  `package.xml` + `go2_inspection/README.md` + `docs/03-INSPECTION-ROADMAP.md` got "superseded / retired in
+  M6" banners pointing at `docs/05-CONVERGENCE.md`.
+- **HELD (not deleted):** `explore_lite.launch.py` + `rtabmap.launch.py` (standalone, outside the closure but
+  unverified as dead — kept pending a check, per don't-break-working). The `slam_toolbox` stack stays (it is
+  the frontier-exploration SLAM via `explore → slam`).
+- **Net:** one clean tree on the converged `zone_inspector` engine; the misleading docs are corrected; the
+  legacy path is gone from code and from the user-facing run guide. ADR-016 M1–M6 complete.
+
+---
+
 ## CHECKPOINT 56 — Docs migrated to the converged workflow (M6 prerequisite) — 2026-06-30
 **Status:** 🟢 README + RUN-SIM now present the converged `zone_inspector` / service-layer path as primary;
 the legacy wall-follower is clearly marked as a kept fallback. **No code deleted** (the wall-follower still

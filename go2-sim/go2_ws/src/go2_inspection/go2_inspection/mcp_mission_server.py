@@ -15,7 +15,8 @@ with the python3 on PATH, which must have fastmcp). Register with Claude CLI:
     claude mcp add go2-sim -- "/abs/path/to/go2-sim/go2_ws/src/run_mcp_sim.sh"
 
 The sim base stack must be running for the tools to do anything:
-  - mapping/exploration:  ros2 launch go2_bringup sim_mapping.launch.py world:=maze.sdf headless:=false
+  - mapping/exploration:  ros2 launch go2_bringup rtabmap_slam.launch.py world:=maze.sdf headless:=false
+                          (+ nav2.launch.py so the frontier explorer can drive)
   - inspection:           ros2 launch go2_bringup inspection_nav.launch.py world:=maze.sdf map_yaml:=...
   - the service layer:     ros2 launch go2_bringup mission_control.launch.py [zones_file:=... map_name:=...]
 If mission_control is not up, every tool returns a clear "service not available" message (no crash).
@@ -135,7 +136,7 @@ def start_exploration() -> dict:
     """Begin AUTONOMOUS frontier exploration: the Go2 drives itself around the unknown area, building the
     map with RTAB-Map SLAM. NON-BLOCKING -- returns immediately. Use get_status to watch coverage, then
     stop_exploration when the map looks complete, then save_map. Requires the mapping stack
-    (sim_mapping.launch.py) running."""
+    (rtabmap_slam.launch.py + nav2.launch.py) running."""
     return _call("start_exploration", timeout=30)
 
 

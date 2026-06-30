@@ -16,7 +16,8 @@ graph runs on the real Go2 via WendyOS (see `../apps/`). Full project overview: 
 - **Inspection** — `zone_inspector`: samples safe viewpoints in each zone, drives Nav2 to each, and does a
   360° in-place spin running **live YOLOE** open-vocab detection, projecting every detection to a **3D map
   position** through the RGBD depth camera (map-position validation + persistence dedup), cropping each
-  gauge. *(The legacy `zone_wall_follower` wall-following path is kept as a fallback — see RUN-SIM.md.)*
+  gauge. *(The earlier `zone_wall_follower` wall-following path was retired in M6 — `zone_inspector`
+  supersedes it; ADR-016 / `docs/05-CONVERGENCE.md`.)*
 - **Reading & report** — Claude reads each detected gauge crop (type · unit · value · risk) into the
   per-zone + facility report; `score()` grades readings vs ground truth.
 - **Control** — a 14-service `mission_control` layer (async task model + `cancel_task` + a structured

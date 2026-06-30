@@ -1,6 +1,13 @@
 # go2_inspection — autonomous gauge inspection (Phases 2–4)
 
-Per-zone pipeline: **sweep a zone → stitch a panorama → FastSAM-segment the gauges → Claude reads each → CSV**.
+> **Updated (ADR-016 / M6):** the inspection engine is now **`zone_inspector`** — samples viewpoints per
+> zone → Nav2 to each → 360° in-place spin with live YOLOE → projects each detection to a 3D map position
+> via the RGBD depth camera → crops gauges; `gauge_inspector` then reads `zone_inspector`'s `objects.json`
+> crops. The wall-follower pipeline described below (`zone_sweeper` / `panorama_segmenter` /
+> `yoloe_segmenter`) was **retired in M6** — see `../../../docs/05-CONVERGENCE.md` and `RUN-SIM.md` § G.
+> The text below is kept for historical context.
+
+Per-zone pipeline (legacy wall-follower): **sweep a zone → stitch a panorama → FastSAM-segment the gauges → Claude reads each → CSV**.
 Camera-frame + odometry only (no camera extrinsic/TF), so it ports to the real Go2's external camera unchanged.
 Built on top of the RTAB-Map + Nav2 + frontier mapping stack (which it does **not** modify).
 
@@ -19,7 +26,9 @@ Built on top of the RTAB-Map + Nav2 + frontier mapping stack (which it does **no
 
 Make the venv once: `uv venv ~/gauge_venv && uv pip install --python ~/gauge_venv/bin/python fastmcp anthropic opencv-python-headless`
 
-## Run (sim)
+## Run (sim) — LEGACY wall-follower (retired in M6; non-functional, kept for history)
+> The `zone_sweeper` / `panorama_segmenter` / `yoloe_segmenter` nodes below were removed. For the current
+> path use `zone_inspector` via the service layer — see the workspace `RUN-SIM.md` § G.
 ```bash
 # Phase 2 — sweep the gauge zone (robot already localized / in SLAM). Spawns in the gauge room here:
 ros2 launch go2_bringup rtabmap_slam.launch.py world:=facility_gauges.sdf headless:=true \

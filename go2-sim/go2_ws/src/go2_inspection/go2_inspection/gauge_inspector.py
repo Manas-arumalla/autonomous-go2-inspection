@@ -2,7 +2,7 @@
 """gauge_inspector -- Phase 4 of the autonomous gauge inspection: read each cropped gauge with Claude
 and write the inspection-report CSV.
 
-INPUT  (from panorama_segmenter, Phase 3):  ~/gauges/<zone>/gauges.json + gauges/gauge_NN.png
+INPUT  (from zone_inspector):  ~/gauges/<zone>/objects.json (gauge-class crops) — legacy gauges.json also read
 OUTPUT: ~/gauges/<zone>/inspection_report.csv  (+ readings.json with the full reasoning)
         columns: ID, Zone, Type, Reading, Unit, SI_Unit, Range, Risk, Confidence
 

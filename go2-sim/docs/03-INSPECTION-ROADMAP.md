@@ -1,5 +1,10 @@
 # Autonomous Gauge-Inspection — Mission Spec & Roadmap
 
+> **Superseded (ADR-016, 2026-06-30):** this roadmap describes the original **wall-follower** pipeline
+> (`zone_sweeper` → `panorama_segmenter` → `gauge_inspector`). The project has since **converged onto
+> `zone_inspector`** (viewpoint sampling + 360° spin + depth-projected 3D detection); the wall-follower
+> nodes were retired in M6. See **`docs/05-CONVERGENCE.md`** for the current design. Kept for history.
+
 Status: **Phases 0–4 implemented & validated in sim; the environment is now a realistic multi-room
 facility. The autonomous MISSION (Phase 5+) is DOCUMENTED here as planned milestones — NOT yet
 implemented. Do not start implementing the future phases until explicitly told to proceed.**

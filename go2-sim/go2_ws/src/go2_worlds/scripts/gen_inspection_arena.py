@@ -16,7 +16,7 @@ exactly, just split into per-zone coloured segments.
 Every prop is a Fuel <include>; the first `gz sim` launch downloads them to ~/.gz/fuel (network required),
 then caches. The human actor mesh (~11 MB) is the single heaviest asset and is included exactly once. Launch
 with:
-  ros2 launch go2_bringup sim_mapping.launch.py world:=inspection_arena.sdf headless:=false
+  ros2 launch go2_bringup rtabmap_slam.launch.py world:=inspection_arena.sdf headless:=false
 """
 
 import os

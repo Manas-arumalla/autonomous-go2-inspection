@@ -18,11 +18,8 @@ setup(
     entry_points={'console_scripts': [
         # --- inspection engine (converged from -main; ADR-016) ---
         'zone_inspector = go2_inspection.zone_inspector:main',
-        # --- existing path (kept until the convergence is validated; ADR-016 M6 retires the legacy) ---
-        'zone_sweeper = go2_inspection.zone_sweeper:main',
-        'zone_wall_follower = go2_inspection.zone_wall_follower:main',
-        'panorama_segmenter = go2_inspection.panorama_segmenter:main',
-        'yoloe_segmenter = go2_inspection.yoloe_segmenter:main',
+        # (ADR-016 M6: the legacy wall-follower nodes — zone_sweeper / zone_wall_follower /
+        #  panorama_segmenter / yoloe_segmenter — were retired; zone_inspector supersedes them.)
         'inspection_mission = go2_inspection.inspection_mission:main',
         'mission_control_server = go2_inspection.mission_control_server:main',
         # --- benchmarking: score a run vs world ground truth (ADR-016 M7b) ---
