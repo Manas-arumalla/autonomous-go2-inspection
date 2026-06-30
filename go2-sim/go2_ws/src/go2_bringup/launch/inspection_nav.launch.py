@@ -49,7 +49,8 @@ def generate_launch_description():
     nav2 = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(pkg, "launch", "nav2.launch.py")),
         launch_arguments={"use_sim_time": "true",
-                          "params_file": os.path.join(pkg, "config", "nav2_params_rtab.yaml")}.items(),
+                          "params_file": os.path.join(pkg, "config", "nav2_params_rtab.yaml"),
+                          "use_safety": LaunchConfiguration("use_safety")}.items(),  # opt-in safety chain
     )
 
     return LaunchDescription([
@@ -60,6 +61,7 @@ def generate_launch_description():
         DeclareLaunchArgument("spawn_x", default_value="0.0"),
         DeclareLaunchArgument("spawn_y", default_value="0.0"),
         DeclareLaunchArgument("spawn_yaw", default_value="0.0"),
+        DeclareLaunchArgument("use_safety", default_value="false"),  # forward to nav2: twist_mux + collision_monitor
         slam,
         TimerAction(period=5.0, actions=[map_server, map_lifecycle]),   # static /map up early
         TimerAction(period=85.0, actions=[nav2]),                       # after rtabmap loc map->odom

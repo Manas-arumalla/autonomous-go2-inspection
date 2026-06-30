@@ -5,6 +5,28 @@ Running history of milestones, checkpoints, and decisions. Newest at top.
 
 ---
 
+## CHECKPOINT 58 — Obstacle-stop VERIFIED live + use_safety forwarding fix — 2026-06-30
+**Status:** 🟢 The full safety chain runs end-to-end in the live sim and **physically stops the robot at a
+wall**. Found + fixed a launch gap (`inspection_nav` wasn't forwarding `use_safety`).
+
+- **🐛 Fix:** `inspection_nav.launch.py` included `nav2.launch.py` **without forwarding `use_safety`**, so
+  `use_safety:=true` was silently ignored (the safety chain never came up). Added the `use_safety` arg +
+  forwarded it to the nav2 include. (Also noted: nav2 starts at +85 s in this launch, so the chain only
+  appears ~90 s in.)
+- **Full chain LIVE (maze sim, `use_safety:=true`):** `twist_mux` / `velocity_smoother` /
+  `collision_monitor` all up, **`collision_monitor: active [3]`**, and the complete topic chain wired —
+  `/cmd_vel_nav → /cmd_vel_mux → /cmd_vel_smoothed → /cmd_vel`.
+- **Obstacle-stop demonstrated:** drove the robot forward (`/cmd_vel_teleop` 0.4 m/s) from HOME toward a
+  wall. While clear, the command passed through (`cmd_vel_smoothed` 0.3 = `cmd_vel` 0.3). At a wall **0.44 m
+  dead ahead** (lidar, front sector), `collision_monitor` **zeroed the forward command** (input 0.3 →
+  output 0.0) and the robot **stopped 0.44 m short — no collision**. (The depth camera read 4.88 m there
+  because the body pitched on braking; the horizontal lidar collision_monitor uses saw the wall correctly.)
+- **Safety layer now fully verified:** launch graph (both modes) · twist_mux priority/e-stop · lifecycle
+  activation · `use_safety` forwarding · full live chain · **physical obstacle-stop**. Still opt-in /
+  default-off.
+
+---
+
 ## CHECKPOINT 57 — M6 DONE: legacy wall-follower path retired — 2026-06-30
 **Status:** 🟢 Deleted the legacy wall-follower code (owner-approved) + fixed every reference. Build clean,
 4 executables, 23 tests pass, no runnable references to deleted code remain.
