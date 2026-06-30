@@ -5,6 +5,35 @@ Running history of milestones, checkpoints, and decisions. Newest at top.
 
 ---
 
+## CHECKPOINT 55 — M7b safety layer: opt-in twist_mux + collision_monitor chain — 2026-06-30
+**Status:** 🟢 Built the velocity-arbitration + obstacle-stop chain as an **opt-in** Nav2 flag. Default
+path **byte-identical / zero risk**; twist_mux verified live. Full collision_monitor lifecycle activation
+pending a full-stack relaunch.
+
+- **`nav2.launch.py` — opt-in `use_safety` flag (default `false`).** Default builds the exact same 6-node
+  graph as before (controller → `/cmd_vel` directly) — verified the node list is unchanged, so the proven
+  path is untouched. With `use_safety:=true` it inserts the chain
+  `controller → cmd_vel_nav → twist_mux → cmd_vel_mux → velocity_smoother → cmd_vel_smoothed →
+  collision_monitor → cmd_vel` (9 nodes; velocity_smoother + collision_monitor added to the managed
+  lifecycle set). Implemented via `OpaqueFunction` so the branch resolves at launch time.
+- **`config/twist_mux.yaml`** — priority mux nav (10) < teleop (50) < **e-stop (100)**; a zero-Twist on
+  `/cmd_vel_estop` halts everything, teleop on `/cmd_vel_teleop` overrides autonomy, and collision_monitor
+  still guards the muxed output so even teleop is obstacle-stopped. **`use_stamped: false`** — the Go2
+  chain is `geometry_msgs/Twist` end-to-end (CHAMP needs unstamped; matches `enable_stamped_cmd_vel:false`).
+- **Verified:** (a) launch graph for both modes (6 vs 9 nodes; default unchanged) via a mock launch
+  context — no nodes started; (b) **twist_mux live** — nav-only → `cmd_vel_mux.vx=0.20`; nav + e-stop →
+  `0.00` (e-stop wins). The live test **caught a real bug**: twist_mux defaults to `use_stamped:true`
+  (TwistStamped), which mismatched the Twist chain → fixed.
+- **Reused existing infra:** the `collision_monitor` + `velocity_smoother` configs already lived in
+  `nav2_params*.yaml` (prepared but never launched — nav2_bringup's force-start aborted lifecycle bringup);
+  this wires them in cleanly + opt-in. `twist_mux`, `nav2_collision_monitor`, `nav2_velocity_smoother` are
+  all in `/opt/ros/jazzy`.
+- **Pending (needs a clean full-stack relaunch):** confirm collision_monitor + velocity_smoother **activate**
+  in a live Nav2 lifecycle (the historically-fragile part) and that the robot obstacle-stops. Opt-in +
+  default-off means this carries **no risk** to the working stack until validated.
+
+---
+
 ## CHECKPOINT 54 — M7b polish: de-emissive gauges, get_events service, gauge-score tests — 2026-06-30
 **Status:** 🟢 Three small "exceed both" items, each verified. 23 unit tests pass; 14 mission_control
 services.

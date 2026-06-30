@@ -1,0 +1,27 @@
+# twist_mux for the Go2 safety chain (ADR-016 M7b). Priority-muxes velocity sources onto a single output
+# (remapped to cmd_vel_mux in nav2.launch.py when use_safety:=true). Higher priority wins; a source is
+# ignored once it goes `timeout` seconds without a message, so a stale autonomy command can't pin the robot.
+#
+#   navigation (10)  < teleop (50)  < e-stop (100)
+#
+# E-STOP: publish a zero geometry_msgs/Twist on /cmd_vel_estop at >2 Hz to override everything and halt;
+# TELEOP: publish on /cmd_vel_teleop to take manual control over autonomy. collision_monitor still guards
+# the muxed output downstream, so even teleop is obstacle-stopped.
+twist_mux:
+  ros__parameters:
+    use_sim_time: true
+    use_stamped: false        # the Go2 chain is geometry_msgs/Twist end-to-end (CHAMP needs unstamped;
+                              # matches collision_monitor's enable_stamped_cmd_vel:false). Default true = TwistStamped.
+    topics:
+      navigation:
+        topic: cmd_vel_nav
+        timeout: 0.5
+        priority: 10
+      teleop:
+        topic: cmd_vel_teleop
+        timeout: 0.5
+        priority: 50
+      estop:
+        topic: cmd_vel_estop
+        timeout: 0.5
+        priority: 100
