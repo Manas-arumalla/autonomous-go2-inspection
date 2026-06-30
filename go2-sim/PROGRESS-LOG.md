@@ -5,6 +5,31 @@ Running history of milestones, checkpoints, and decisions. Newest at top.
 
 ---
 
+## CHECKPOINT 52 — Ground-truth benchmarking (M7b) + M6 deferral (safety) — 2026-06-30
+**Status:** 🟢 Added a CI-gated detection benchmark vs world ground truth (neither version had one).
+Deliberately **deferred** the legacy deletions after mapping the launch graph — they're entangled with
+live nodes.
+
+- **Benchmark harness (`go2_inspection/benchmark.py`, `ros2 run go2_inspection benchmark`):** parses
+  ground-truth object world-positions straight from the Gazebo world SDF, loads the per-zone
+  `objects.json`, and computes **precision / recall / F1**, **mean localization error** (greedy per-class
+  nearest-neighbour within a match radius), per-class recall, and writes `benchmark.{md,json}`. Pure /
+  ROS-free → **+6 unit tests, suite now 17 pass**. On the maze run it correctly finds the **4 ground-truth
+  gauges** and honestly scores **recall 0/4** (detection was OFF). When YOLOE/CLIP is available the same
+  harness reports real P/R + localization error vs e.g. gauge_01 @ (5.85, 2.0). This is the rigor neither
+  `-main` nor our wall-follower had.
+- **M6 (legacy retirement) DEFERRED after a full launch-graph trace — NOT a blanket delete.** The include
+  graph shows the legacy launches are entangled with the **live** path:
+  `inspection_nav → nav2, rtabmap_slam → go2_champ, octomap` (so **octomap is live**), and the frontier
+  launch `explore → nav2, slam → go2_champ, sim` (so **slam + sim are live** via exploration). Only
+  `mission.launch.py` + `sim_mapping.launch.py` + the 4 wall-follower nodes
+  (`zone_sweeper`/`zone_wall_follower`/`panorama_segmenter`/`yoloe_segmenter`) +
+  `explore_lite`/`rtabmap.launch` sit outside the closure — and `sim_mapping → mission → those nodes` are
+  interlinked. Per the standing *don't-break-working* rule, retiring them needs a careful, verified pass
+  (build + launch-parse each active launch after), not a quick `rm`. Tracked for a dedicated M6 session.
+
+---
+
 ## CHECKPOINT 51 — Full converged-inspection runtime test PASSES + a real hang fix — 2026-06-30
 **Status:** 🟢 The converged `zone_inspector` engine runs **end-to-end in Gazebo**. Found + fixed a
 detector-load hang that would otherwise stall every real inspection. 11/11 unit tests pass.

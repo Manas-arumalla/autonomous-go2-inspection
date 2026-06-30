@@ -25,5 +25,7 @@ setup(
         'yoloe_segmenter = go2_inspection.yoloe_segmenter:main',
         'inspection_mission = go2_inspection.inspection_mission:main',
         'mission_control_server = go2_inspection.mission_control_server:main',
+        # --- benchmarking: score a run vs world ground truth (ADR-016 M7b) ---
+        'benchmark = go2_inspection.benchmark:_cli',
     ]},
 )

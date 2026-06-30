@@ -145,6 +145,17 @@ unique pieces. The end state is ONE clean, advanced tree — not two.
     `0 objects` was *purely* YOLOE-OFF, **not** a coverage/nav/localization miss.
 - **M6 UNBLOCKED (was HELD):** the converged inspect path is now confirmed live, so legacy retirement
   (wall-follower path, 2nd SLAM stack, legacy xacros/launch/configs) can proceed.
-- **M7b PENDING:** mission state machine + structured event stream, `twist_mux` + `collision_monitor`
-  safety, benchmarking (coverage % / detection P-R vs `objects.json` world xyz — now we have ground-truth
-  gauge positions / gauge-read accuracy via `score()`), perception-sim realism.
+- **M7b IN PROGRESS (2026-06-30, CP52) — ground-truth benchmarking DONE:** `benchmark.py`
+  (`ros2 run go2_inspection benchmark <world.sdf> <gauges_root>`) parses GT object world-positions from
+  the Gazebo SDF, loads per-zone `objects.json`, and reports **precision/recall/F1 + mean localization
+  error** (greedy per-class NN match) + per-class recall → `benchmark.{md,json}`. Pure/ROS-free, **+6
+  tests (17 total pass)**. On the maze it finds the 4 GT gauges and scores recall 0/4 honestly (detection
+  OFF); with YOLOE/CLIP it yields real P/R vs e.g. gauge_01 @ (5.85, 2.0). **Still pending:** mission
+  state machine + event stream, `twist_mux` + `collision_monitor`, gauge-read accuracy via `score()`,
+  perception-sim realism.
+- **M6 DEFERRED (not blanket-deletable):** a full launch-graph trace shows the legacy launches are
+  entangled with the live path — `inspection_nav → nav2, rtabmap_slam → go2_champ, octomap` (octomap
+  live) and `explore → nav2, slam → go2_champ, sim` (slam + sim live via frontier exploration). Only
+  `mission.launch.py`/`sim_mapping.launch.py` + the 4 wall-follower nodes + `explore_lite`/`rtabmap.launch`
+  are outside the closure, and `sim_mapping → mission → nodes` interlink them. Retiring them safely needs a
+  dedicated verified pass (rebuild + launch-parse each active launch), per the don't-break-working rule.
