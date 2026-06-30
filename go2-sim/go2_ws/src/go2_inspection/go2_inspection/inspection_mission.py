@@ -18,7 +18,7 @@ import os, json, math, subprocess, time
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
-from nav2_msgs.action import NavigateToPose
+from nav2_msgs.action import NavigateToPose, ComputePathToPose
 
 from go2_inspection import report_utils
 from go2_inspection.mission_fsm import MissionFSM, MissionState
@@ -62,8 +62,39 @@ class Mission(Node):
             self.declare_parameter("read_approach", False).value
         )  # True = drive close to each detected gauge for a high-res read crop (ADR-017)
         self.nav = ActionClient(self, NavigateToPose, "navigate_to_pose")
+        self.reach = ActionClient(self, ComputePathToPose, "compute_path_to_pose")
+
+    def reachable(self, x, y):
+        """Best-effort reachability pre-check via Nav2's global planner (ComputePathToPose) from the robot's
+        current pose. Returns False only when the planner is up AND returns no path -> skip a zone fast
+        instead of burning the full nav timeout toward it. Planner unavailable/inconclusive -> True (let
+        nav try, preserving old behaviour)."""
+        if not self.reach.wait_for_server(timeout_sec=3.0):
+            return True
+        g = ComputePathToPose.Goal()
+        g.goal.header.frame_id = "map"
+        g.goal.header.stamp = rclpy.time.Time().to_msg()
+        g.goal.pose.position.x = float(x)
+        g.goal.pose.position.y = float(y)
+        g.goal.pose.orientation.w = 1.0
+        g.use_start = False
+        fut = self.reach.send_goal_async(g)
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=5.0)
+        gh = fut.result()
+        if gh is None or not gh.accepted:
+            return False
+        rf = gh.get_result_async()
+        rclpy.spin_until_future_complete(self, rf, timeout_sec=8.0)
+        try:
+            r = rf.result()
+            return r.status == 4 and len(r.result.path.poses) >= 2
+        except Exception:
+            return True
 
     def goto(self, x, y, yaw=0.0, timeout=200.0, label=""):
+        if not self.reachable(x, y):
+            self.get_logger().warn(f"{label} UNREACHABLE (Nav2 planner found no path); skip")
+            return False
         if not self.nav.wait_for_server(timeout_sec=15.0):
             self.get_logger().error("no Nav2 server")
             return False

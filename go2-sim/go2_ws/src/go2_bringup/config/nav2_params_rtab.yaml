@@ -183,7 +183,10 @@ local_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 1.0     # LOW = wide, gentle gradient -> a cost basin that CENTRES the path in
                                      # corridors. A high factor (Nav2 default 10) is the classic wall-hugger.
-        inflation_radius: 0.55       # CP48: 0.7 filled the narrow maze corridors edge-to-edge (gradients from
+        inflation_radius: 0.30       # CP63: 0.55 sealed the maze HUB CORNERS (robot stuck spinning in recovery
+                                     # -- couldn't round a wall-end to enter a room); 0.30 > footprint+pad so it
+                                     # stays ~0.1m off walls yet leaves a lane around corners. (Earlier note:)
+                                     # CP48: 0.7 filled the narrow maze corridors edge-to-edge (gradients from
                                      # both walls met -> NO clear lane -> planner stuck at the corridor mouth).
                                      # 0.35 keeps ~0.20m off the footprint edge and still centres the path in a
                                      # corridor; nudge up only if the gait clips walls near doorways.
@@ -228,7 +231,10 @@ global_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 1.0     # LOW = wide, gentle gradient -> a cost basin that CENTRES the path in
                                      # corridors. A high factor (Nav2 default 10) is the classic wall-hugger.
-        inflation_radius: 0.55       # CP48: 0.7 filled the narrow maze corridors edge-to-edge (gradients from
+        inflation_radius: 0.30       # CP63: 0.55 sealed the maze HUB CORNERS (robot stuck spinning in recovery
+                                     # -- couldn't round a wall-end to enter a room); 0.30 > footprint+pad so it
+                                     # stays ~0.1m off walls yet leaves a lane around corners. (Earlier note:)
+                                     # CP48: 0.7 filled the narrow maze corridors edge-to-edge (gradients from
                                      # both walls met -> NO clear lane -> planner stuck at the corridor mouth).
                                      # 0.35 keeps ~0.20m off the footprint edge and still centres the path in a
                                      # corridor; nudge up only if the gait clips walls near doorways.

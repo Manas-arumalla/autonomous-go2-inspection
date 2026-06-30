@@ -135,6 +135,9 @@ class ZoneInspector(Node):
         # not re-detect (read_confirmed==False). Default OFF (a real gauge could read 0 if out of the close
         # FOV / occluded) -- read_confirmed is always recorded so the data stays honest either way.
         self.read_drop_unconfirmed = bool(self.declare_parameter("read_drop_unconfirmed", False).value)
+        # settle time at the read pose before capturing -- lets the body level out after stopping (CHAMP
+        # pitches nose-up on braking, which can tilt the low fixed camera up off a low gauge).
+        self.read_settle = float(self.declare_parameter("read_settle", 1.5).value)
         self.optical_frame = self.declare_parameter("optical_frame", "camera_link_optical").value
         # --- reliability: detect only while SPINNING (walking blurs the feed + mislocalizes), and double-
         #     check every projected position against the zone polygon + the saved occupancy map ---
@@ -888,7 +891,7 @@ class ZoneInspector(Node):
 
     def _begin_read_capture(self):
         self.stop()
-        self._read_settle = int(max(self.spin_settle, 0.8) / 0.1)
+        self._read_settle = int(max(self.spin_settle, self.read_settle) / 0.1)
         self._read_frames = []
         self.state = "READ_CAPTURE"
 

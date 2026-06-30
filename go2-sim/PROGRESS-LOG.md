@@ -5,6 +5,32 @@ Running history of milestones, checkpoints, and decisions. Newest at top.
 
 ---
 
+## CHECKPOINT 63 — Fixed the maze stuck-spinning + low-camera FOV — 2026-06-30
+**Status:** 🟢 Root-caused + fixed the recurring "robot stuck turning in circles in the maze hub" + the
+low-gauge FOV miss. All live-verified. Default paths intact; 32 tests pass.
+
+- **🐛 BIG FIX — robot stuck spinning in the maze hub.** Root cause: `inflation_radius = 0.55` (raised from
+  the documented-good 0.35) **sealed the maze hub corners** — the robot couldn't round a wall-end to enter a
+  room, the controller found no forward path, and the BT looped **spin-recovery** forever (the "turning in
+  circles" the owner saw). Lowered to **0.30** in both costmaps (`nav2_params_rtab.yaml`); 0.30 > footprint
+  half-width+padding so the robot still stays ~0.1 m off walls but has a lane around corners. **Verified
+  live (clean robot):** navigated HOME → through the hub corner → to **zone_2 (map −2.64, 1.71 ≈ 0.3 m from
+  target)**, arrived, **`cmd_vel` idle — NOT spinning.** (The reachability pre-check correctly let it try —
+  zone_2 *is* reachable; the block was purely the inflated corners.)
+- **Fix 1 — low-camera FOV (the read_px=0 false-negatives).** The Go2 camera is **low (0.285 m) + fixed
+  horizontal**, so eye-level gauges would be *above* its view; gauges at 0.30 m were ≈ camera height but the
+  body's nose-up pitch on braking tilted them out the bottom. (a) Raised the 4 maze gauges **0.30 → 0.45 m**
+  (still in the low camera's FOV, biased for the nose-up tilt; benchmark GT uses x,y so unaffected). (b) Added
+  `read_settle` (default **1.5 s**) so the body levels before capture. **Verified:** zone_0 now reads
+  **`read_px=191, read_confirmed=True`** (was 0) — a crisp VOLTAGE dial (~450 V).
+- **Fix 2 — zone-entry reachability.** `inspection_mission.goto` now pre-checks reachability with Nav2's
+  planner (`ComputePathToPose`) and skips a *truly* unreachable zone fast instead of burning the full nav
+  timeout (best-effort; planner-down → proceeds as before). Honest finding: zone_2/3 were never *unreachable*
+  (a path exists) — the block was the inflated corners (fixed above), so the real win there is the inflation
+  change.
+
+---
+
 ## CHECKPOINT 62 — Full autonomous mission + close-approach FP rejection — 2026-06-30
 **Status:** 🟢 Ran the complete detect-then-approach mission end-to-end across the maze (real-time,
 autonomous) + added opt-in false-positive rejection by close re-observation. Build clean, 32 tests, default
