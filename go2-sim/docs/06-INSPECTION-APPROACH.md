@@ -84,8 +84,27 @@ crop is **174×168 px** vs the at-range survey crop's **56×45 px** — a **~3.7
 readable resolution. The quality gate passed view 1 (159 px ≥ target) in a single attempt (no wasted
 re-approach); the re-approach path triggers only on a weak/failed view.
 
+## Adaptive standoff + nav-reachability (implemented)
+
+- **Adaptive standoff from the measured gauge size.** `_apparent_size(bbox, depth)` estimates each gauge's
+  physical width via the pinhole model (`size = px_width · Z / fx`, distance-invariant, clamped to a
+  plausible 0.05–1.0 m), stored as `est_size_m` on the object at its highest-confidence observation. The read
+  standoff is then computed **per gauge** from that measured size (falling back to the nominal
+  `read_asset_size` only if unmeasured) — so a large or small gauge is read from the right distance, not a
+  one-size-fits-all guess. *Verified live:* measured 0.305 m → standoff 0.97 m → read crop 122 px (≈ the
+  120 px target).
+- **Nav-reachability pre-check.** Before the survey, a `REACH_CHECK` phase queries Nav2's global planner
+  (`ComputePathToPose`) for a path to each sampled viewpoint from the robot's pose, **drops the unreachable
+  ones, and orders the rest by path length** — so the robot never wastes a long nav-timeout toward an
+  unreachable viewpoint, and visits the cheapest first. Falls back to all viewpoints if the planner is cold.
+  Opt-in via `vp_reach_check` (default on). *Verified live:* pre-checked 2 viewpoints, both reachable, ordered
+  by cost.
+
 ## Future
 
-Hardware lever for very large spaces: a PTZ/optical-zoom camera + the Go2's articulated head (read far
-without approaching — Spot's trick). Adaptive standoff from the *measured* gauge size (bbox + depth) rather
-than the nominal `read_asset_size`. Nav-reachability hardening for hard-to-reach survey viewpoints.
+- **Close-approach false-positive rejection:** the read-approach re-detects the gauge at the close pose; if
+  it finds nothing (`read_px == 0`), the survey detection was almost certainly a false positive (a real gauge
+  is trivially detected from 0.8 m). Observed live: a survey FP at (5.54, 0.88) read `read_px=0`. Use this to
+  drop unconfirmed detections and lift precision.
+- Hardware lever for very large spaces: a PTZ/optical-zoom camera + the Go2's articulated head (read far
+  without approaching — Spot's trick).

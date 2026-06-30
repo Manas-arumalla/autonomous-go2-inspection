@@ -30,7 +30,7 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallb
 from rclpy.executors import MultiThreadedExecutor
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Image, CameraInfo
-from nav2_msgs.action import NavigateToPose
+from nav2_msgs.action import NavigateToPose, ComputePathToPose
 import tf2_ros
 
 from go2_inspection import detect_utils
@@ -186,7 +186,13 @@ class ZoneInspector(Node):
             callback_group=sens,
         )
         self.cmd = self.create_publisher(Twist, "/cmd_vel", 10)
+        # nav-reachability hardening: pre-check each survey viewpoint with Nav2's global planner and drop
+        # the unreachable ones (so the robot doesn't waste time timing-out toward an unreachable viewpoint).
+        self.vp_reach_check = bool(self.declare_parameter("vp_reach_check", True).value)
+        self.vp_reach_timeout = float(self.declare_parameter("vp_reach_timeout", 8.0).value)
         self.nav = ActionClient(self, NavigateToPose, "navigate_to_pose")
+        self.reach = ActionClient(self, ComputePathToPose, "compute_path_to_pose")
+        self._reach_gen = 0
 
         # detection model + background inference thread. _capture gates inference to the SPIN phase only:
         # the thread idles during BUILD/VP_NAV so no walking/transition frame is ever inferred (and CPU is
@@ -507,6 +513,107 @@ class ZoneInspector(Node):
             f"{self.zone_id}: {len(self.viewpoints)} viewpoints {[(round(x,1),round(y,1)) for x,y in self.viewpoints]}"
         )
         self.vp_i = 0
+        if self.vp_reach_check and self.reach.server_is_ready():
+            self._begin_reach_check()  # drop unreachable viewpoints + order by Nav2 path cost
+        else:
+            self._begin_viewpoint()
+
+    # ---------- nav-reachability pre-check (Nav2 global planner) ----------
+    def _begin_reach_check(self):
+        """Ask Nav2's global planner (ComputePathToPose) for a path to each sampled viewpoint from the
+        robot's current pose; DROP viewpoints with no valid path, ORDER the rest by path length (shortest
+        first). Stops the robot wasting time toward unreachable viewpoints (the cross-maze timeouts) and
+        visits the cheapest-to-reach first. Falls back to all viewpoints if the planner rejects everything
+        (never strand with zero)."""
+        self._reach_i = 0
+        self._reach_scored = []
+        self._reach_done = None
+        self._reach_ticks = 0
+        self._reach_gen += 1
+        self.state = "REACH_CHECK"
+        self.get_logger().info(
+            f"{self.zone_id}: reachability pre-check of {len(self.viewpoints)} viewpoint(s)"
+        )
+
+    def _st_REACH_CHECK(self):
+        self.stop()
+        if self._reach_i >= len(self.viewpoints):
+            self._finish_reach_check()
+            return
+        vx, vy = self.viewpoints[self._reach_i]
+        if self._reach_done is None:
+            g = ComputePathToPose.Goal()
+            g.goal.header.frame_id = "map"
+            g.goal.header.stamp = rclpy.time.Time().to_msg()
+            g.goal.pose.position.x = float(vx)
+            g.goal.pose.position.y = float(vy)
+            g.goal.pose.orientation.w = 1.0
+            g.use_start = False  # plan from the robot's current pose
+            self._reach_done = False
+            self._reach_ticks = 0
+            gen, vp = self._reach_gen, (vx, vy)
+            self.reach.send_goal_async(g).add_done_callback(lambda fut: self._reach_acc(fut, gen, vp))
+            return
+        self._reach_ticks += 1
+        if self._reach_done in (True, "reject"):
+            self._reach_i += 1
+            self._reach_done = None
+            return
+        if self._reach_ticks * 0.1 > self.vp_reach_timeout:  # planner slow -> keep it but rank last
+            self._reach_scored.append(((vx, vy), 1e6))
+            self.get_logger().warn(f"  viewpoint {self._reach_i + 1}: reach-check timeout; keep (rank last)")
+            self._reach_i += 1
+            self._reach_done = None
+
+    def _reach_acc(self, fut, gen, vp):
+        if gen != self._reach_gen:
+            return
+        try:
+            h = fut.result()
+        except Exception:
+            self._reach_done = "reject"
+            return
+        if not h.accepted:
+            self._reach_done = "reject"
+            return
+
+        def _res(f):
+            if gen != self._reach_gen:
+                return
+            try:
+                r = f.result()
+                path = r.result.path
+                if r.status == 4 and path.poses and len(path.poses) >= 2:
+                    length = sum(
+                        math.hypot(
+                            b.pose.position.x - a.pose.position.x,
+                            b.pose.position.y - a.pose.position.y,
+                        )
+                        for a, b in zip(path.poses[:-1], path.poses[1:])
+                    )
+                    self._reach_scored.append((vp, length))
+                    self._reach_done = True
+                else:
+                    self._reach_done = "reject"
+            except Exception:
+                self._reach_done = "reject"
+
+        h.get_result_async().add_done_callback(_res)
+
+    def _finish_reach_check(self):
+        if self._reach_scored:
+            self._reach_scored.sort(key=lambda s: s[1])  # shortest path first
+            dropped = len(self.viewpoints) - len(self._reach_scored)
+            self.viewpoints = [vp for vp, _ in self._reach_scored]
+            self.get_logger().info(
+                f"{self.zone_id}: {len(self.viewpoints)} reachable viewpoint(s) (dropped {dropped} "
+                f"unreachable), ordered by path cost"
+            )
+        else:
+            self.get_logger().warn(
+                f"{self.zone_id}: reach-check found none reachable; proceeding with all (planner may be cold)"
+            )
+        self.vp_i = 0
         self._begin_viewpoint()
 
     def _begin_viewpoint(self):
@@ -680,20 +787,20 @@ class ZoneInspector(Node):
         ]
         targets = []
         if gauges and self.K is not None and self._occ_gray is not None:
-            d = ip.standoff_distance(
-                self.K[0], self.read_asset_size, self.read_target_px, self.read_dmin, self.read_dmax
-            )
             # reachability mask = obstacles dilated by the robot footprint clearance (NOT the 1.2 m
             # phantom-rejection radius, which would reject every near-wall reading pose)
-            if self._occ_gray is not None:
-                nf = (self._occ_gray < 250).astype(np.uint8)
-                rc = max(1, int(self.read_clearance / max(self._map_res, 1e-6)))
-                reach = cv2.dilate(nf, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * rc + 1, 2 * rc + 1)))
-                is_free = ip.make_is_free(reach, self._map_res, self._map_ox, self._map_oy)
-            else:
-                is_free = lambda x, y: True  # noqa: E731
+            nf = (self._occ_gray < 250).astype(np.uint8)
+            rc = max(1, int(self.read_clearance / max(self._map_res, 1e-6)))
+            reach = cv2.dilate(nf, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * rc + 1, 2 * rc + 1)))
+            is_free = ip.make_is_free(reach, self._map_res, self._map_ox, self._map_oy)
             for o in gauges:
                 w = o["world"]
+                # ADAPTIVE standoff: distance from the MEASURED gauge size (bbox+depth, _apparent_size),
+                # falling back to the nominal read_asset_size only if the measurement was unavailable.
+                asset_size = o.get("est_size_m") or self.read_asset_size
+                d = ip.standoff_distance(
+                    self.K[0], asset_size, self.read_target_px, self.read_dmin, self.read_dmax
+                )
                 normal = ip.wall_normal(
                     self._occ_gray, (w[0], w[1]), self._map_res, self._map_ox, self._map_oy
                 )
@@ -703,12 +810,16 @@ class ZoneInspector(Node):
                 )
                 if poses:
                     targets.append({"obj": o, "poses": poses, "d": d, "attempt": 0, "best": None})
+                    self.get_logger().info(
+                        f"read-approach: gauge @ ({w[0]:.1f},{w[1]:.1f}) measured size ~{asset_size:.2f} m "
+                        f"-> standoff {d:.2f} m ({len(poses)} candidate view(s))"
+                    )
                 else:
                     self.get_logger().warn(
                         f"read-approach: no reachable pose for gauge @ ({w[0]:.1f},{w[1]:.1f}); skip"
                     )
             self.get_logger().info(
-                f"read-approach: {len(targets)}/{len(gauges)} gauge(s) reachable; standoff {d:.2f} m"
+                f"read-approach: {len(targets)}/{len(gauges)} gauge(s) reachable"
             )
         elif gauges:
             self.get_logger().warn("read-approach: no camera K / occupancy map; cannot plan; skip")
@@ -900,6 +1011,7 @@ class ZoneInspector(Node):
         depth = self.depth
         for name, conf, bbox in dets:
             xyz = self._project(bbox, depth, stamp)
+            est_size = self._apparent_size(bbox, depth)  # measured physical width (m) for adaptive standoff
             ok, reason = self._validate_position(name, xyz)
             # record EVERY detection (accepted or rejected, with the reason) so nothing is hidden
             self.detections.append(
@@ -914,7 +1026,7 @@ class ZoneInspector(Node):
                 }
             )
             if ok:
-                self._accumulate(name, conf, bbox, xyz, img)
+                self._accumulate(name, conf, bbox, xyz, img, est_size)
 
     # ---------- position double-check (zone polygon + occupancy map) ----------
     @staticmethod
@@ -997,7 +1109,28 @@ class ZoneInspector(Node):
         Pm = R @ Pc + np.array([t.translation.x, t.translation.y, t.translation.z])
         return [float(Pm[0]), float(Pm[1]), float(Pm[2])]
 
-    def _accumulate(self, name, conf, bbox, xyz, img_rgb):
+    def _apparent_size(self, bbox, depth):
+        """Estimate a detection's physical width (m) from its bbox pixel width and median bbox depth via the
+        pinhole model: size = px_width * Z / fx. Distance-invariant, so it gives the gauge's REAL size for an
+        adaptive read standoff (vs the nominal read_asset_size). Returns None if depth/K unavailable."""
+        if self.K is None or depth is None:
+            return None
+        Hd, Wd = depth.shape[:2]
+        x0, y0, x1, y1 = bbox
+        dx, dy = int((x1 - x0) * 0.1), int((y1 - y0) * 0.1)
+        ix0, iy0 = max(0, x0 + dx), max(0, y0 + dy)
+        ix1, iy1 = min(Wd, x1 - dx), min(Hd, y1 - dy)
+        if ix1 <= ix0 or iy1 <= iy0:
+            return None
+        patch = depth[iy0:iy1, ix0:ix1]
+        valid = patch[np.isfinite(patch) & (patch > 0.2) & (patch < self.max_depth)]
+        if valid.size == 0:
+            return None
+        Z = float(np.median(valid))
+        size = float((x1 - x0) * Z / self.K[0])
+        return size if 0.05 <= size <= 1.0 else None  # clamp to a plausible gauge size, else fall back
+
+    def _accumulate(self, name, conf, bbox, xyz, img_rgb, est_size=None):
         """Merge into an existing object if this detection is at the SAME PLACE (within dedup_radius of a
         localized object, REGARDLESS of class -- repeated scans of one spot are the same physical object),
         keeping the HIGHEST-confidence detection's class, position and crop. Unlocalized detections fall
@@ -1019,6 +1152,8 @@ class ZoneInspector(Node):
                     best["confidence"] = float(conf)
                     best["class"] = name
                     best["world"] = xyz
+                    if est_size is not None:
+                        best["est_size_m"] = round(est_size, 3)
                     self._save_crop(img_rgb, bbox, best)
                 return
         else:
@@ -1038,6 +1173,7 @@ class ZoneInspector(Node):
             "viewpoint": self.vp_i,
             "n_observations": 1,
             "crop": None,
+            "est_size_m": round(est_size, 3) if est_size is not None else None,
         }
         self._save_crop(img_rgb, bbox, obj)
         self.objects.append(obj)

@@ -5,6 +5,29 @@ Running history of milestones, checkpoints, and decisions. Newest at top.
 
 ---
 
+## CHECKPOINT 61 — Adaptive standoff (measured size) + nav-reachability pre-check — 2026-06-30
+**Status:** 🟢 Two robustness upgrades, both live-verified + ground-truth-checked (via the SDF-parsing
+benchmark — no hardcoded values). Opt-in / additive; 32 tests pass.
+
+- **Adaptive standoff from the MEASURED gauge size.** `_apparent_size(bbox, depth)` estimates each gauge's
+  real width via the pinhole model (`size = px_width·Z/fx`, distance-invariant, clamped 0.05–1.0 m), stored
+  as `est_size_m` on the object at its best observation; the read standoff is computed **per gauge** from it
+  (nominal `read_asset_size` only as fallback). Verified live: measured **0.305 m → standoff 0.97 m → read
+  crop 122 px** (≈ the 120 px target). For an unknown-size gauge the fixed 0.26 m guess could badly mis-aim;
+  measuring it hits the target.
+- **Nav-reachability pre-check** (`vp_reach_check`, default on). New `REACH_CHECK` FSM phase queries Nav2's
+  global planner (`ComputePathToPose`) for a path to each sampled viewpoint from the robot's pose, **drops
+  the unreachable ones, orders the rest by path length** (cheapest first), then surveys — so the robot never
+  burns a long nav-timeout toward an unreachable viewpoint (the cross-maze zone_2/3 failures). Falls back to
+  all viewpoints if the planner is cold. Verified live: pre-checked 2 viewpoints, both reachable, ordered.
+- **Honest ground-truth (benchmark parses maze.sdf):** 2 TP, **1 FP**, 9.2 cm mean localization. The FP — a
+  survey false detection at (5.54, 0.88) — was **exposed by the read-approach** (`read_px=0`: the close
+  re-detection found no gauge there). That `read_px=0` is a natural FP signal → a future precision filter
+  (noted in ADR-017).
+- Default-off read path unchanged; `vp_reach_check` only adds a planner pre-query. Build clean.
+
+---
+
 ## CHECKPOINT 60 — Closed-loop read: next-best-view re-approach + read-quality scoring — 2026-06-30
 **Status:** 🟢 Upgraded the read step into a closed loop (re-approach a gauge from another angle if the
 first close view is weak) + per-gauge read-quality scoring. Opt-in, additive, ground-truth-verified. 32
