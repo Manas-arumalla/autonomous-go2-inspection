@@ -1,0 +1,31 @@
+name: CI
+
+# Lightweight CI for the pure, ROS-free logic (the segmentation, detection-vocabulary and gauge
+# helpers). It deliberately does NOT spin up ROS 2 / Gazebo (heavy, GUI, hardware) — it gates the
+# algorithmic core that a regression would silently break. Runs on every push / PR.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: pip install --quiet numpy "opencv-python-headless<5" pytest
+
+      - name: Unit tests (zone segmentation · detection vocab · gauge logic)
+        env:
+          # the ament_python packages expose their modules one dir down (pkg/pkg/*.py)
+          PYTHONPATH: go2-sim/go2_ws/src/go2_zones:go2-sim/go2_ws/src/go2_inspection
+        run: |
+          pytest -q \
+            go2-sim/go2_ws/src/go2_zones/test \
+            go2-sim/go2_ws/src/go2_inspection/test

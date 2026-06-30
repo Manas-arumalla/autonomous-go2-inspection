@@ -113,23 +113,55 @@ def score(readings, gt_path):
     print(f"\n  type {n_type}/{n}  unit {n_unit}/{n}  value(<=5% span) {n_val}/{n}")
 
 
+def _is_gauge(name):
+    """Self-contained (this runs in the gauge venv, no go2_inspection import): is the class a gauge/dial?"""
+    n = (name or "").lower()
+    return "gauge" in n or "dial" in n
+
+
 def inspect(zone_dir, model="claude-opus-4-8", gt_path=None):
+    """Read each gauge crop in a zone with Claude. Prefers zone_inspector's objects.json (filters to the
+    gauge-class objects, reads each crop, and MERGES the structured reading back into the object so
+    get_zone_objects / the report surface it); falls back to the legacy panorama gauges.json. Writes
+    inspection_report.csv + readings.json. Needs ANTHROPIC_API_KEY."""
     import anthropic
     zone_dir = os.path.expanduser(zone_dir)
-    meta = json.load(open(os.path.join(zone_dir, "gauges.json")))
-    zone = meta["zone"]
+    obj_path = os.path.join(zone_dir, "objects.json")
+    legacy = os.path.join(zone_dir, "gauges.json")
+    if os.path.exists(obj_path):                                   # NEW: zone_inspector engine
+        meta = json.load(open(obj_path)); zone = meta.get("zone", "?")
+        items = [o for o in meta.get("objects", []) if _is_gauge(o.get("class", ""))]
+        crop_key, obj_mode = "crop", True
+    elif os.path.exists(legacy):                                   # LEGACY: panorama path
+        meta = json.load(open(legacy)); zone = meta["zone"]
+        items = meta.get("gauges", []); crop_key, obj_mode = "file", False
+    else:
+        print(f"  no objects.json / gauges.json in {zone_dir}"); return []
+    if not items:
+        print(f"  {zone}: no gauges detected to read"); return []
     client = anthropic.Anthropic()
     readings = []
-    for g in meta["gauges"]:
-        r = read_one(client, os.path.join(zone_dir, g["file"]), model)
+    for g in items:
+        rel = g.get(crop_key)
+        cp = os.path.join(zone_dir, rel) if rel else None
+        if not cp or not os.path.exists(cp):
+            continue
+        r = read_one(client, cp, model)
         readings.append((g, r))
+        if obj_mode:                                               # merge the reading into the object
+            g["gauge_reading"] = {k: r.get(k) for k in
+                ("type", "unit", "si_unit", "reading", "range_min", "range_max", "risk", "confidence")}
         print(f"  {g['id']}: {r['type']} {r['reading']}{r['unit']} "
               f"[{r['range_min']}-{r['range_max']}] {r['risk']} conf={r['confidence']}")
+    if not readings:
+        return []
     out_csv = os.path.join(zone_dir, "inspection_report.csv")
     rows_to_csv(zone, readings, out_csv)
     json.dump([{"id": g["id"], **r} for g, r in readings],
               open(os.path.join(zone_dir, "readings.json"), "w"), indent=2)
-    print(f"\nwrote {out_csv}")
+    if obj_mode:                                                   # persist the merged objects.json
+        json.dump(meta, open(obj_path, "w"), indent=2)
+    print(f"\nwrote {out_csv} ({len(readings)} gauge(s))")
     if gt_path and os.path.exists(os.path.expanduser(gt_path)):
         score(readings, os.path.expanduser(gt_path))
     return readings

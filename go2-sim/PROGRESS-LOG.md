@@ -5,6 +5,68 @@ Running history of milestones, checkpoints, and decisions. Newest at top.
 
 ---
 
+## CHECKPOINT 51 — Full converged-inspection runtime test PASSES + a real hang fix — 2026-06-30
+**Status:** 🟢 The converged `zone_inspector` engine runs **end-to-end in Gazebo**. Found + fixed a
+detector-load hang that would otherwise stall every real inspection. 11/11 unit tests pass.
+
+- **Live runtime verification (maze world, sim, Nav2 + localization up):**
+  - **Async orchestration** — `inspect_zone` returns a `task_id` immediately; `get_status` reports
+    `busy=inspect_zone:zone_0 task=running`; **`cancel_task` works** (`busy=idle task=cancelled`, robot
+    stops). ✅
+  - **Autonomous drive** — mission drove the robot **HOME → zone_0 via Nav2 → ARRIVED**, then launched
+    `zone_inspector`. ✅
+  - **The converged engine (after the fix below) ran the full FSM:** `2 viewpoints [(5.3,2.3),(2.3,2.3)]`
+    → `NAV → viewpoint 1` → **`SPIN 360deg` (full turn 382°)** → `NAV → viewpoint 2` → **`SPIN 360deg`
+    (383°)** → `inspection DONE → ~/gauges/zone_0` → **clean exit** (run-once contract). Wrote
+    `objects.json` + `detections.json` + 4 viewpoint frame sets. ✅
+  - **RGBD depth** confirmed earlier (RGB `/camera/image_raw` + real depth `/camera/depth/image_raw`
+    0.49–5.62 m). ✅
+  - **Only YOLOE detection itself is unexercised** — it needs the CLIP/MobileCLIP text backend (network),
+    which is unavailable in this environment. Its absence is now handled gracefully (below).
+
+- **🐛 Bug found + fixed — detector load could hang the whole node forever.** `zone_inspector.__init__`
+  calls `detect_utils.load_model()` **synchronously**; with weights present but **no PE cache**, that
+  reaches `model.get_text_pe()`, which **downloads the CLIP text backend with no timeout**. Offline it
+  **blocks indefinitely** — so the node never starts its FSM and the robot **sits idle after arriving at
+  the zone** (observed live: 0 `/cmd_vel`, `wchan=do_wait`, no logs, task stuck `running`). The intended
+  graceful degradation never fired because the call **hangs** instead of **raising**.
+  - **Fix** (`detect_utils.py`): wrap `get_text_pe` in `_get_text_pe_bounded()` — runs it on a daemon
+    thread bounded by **`YOLOE_PE_TIMEOUT` (default 90 s)**; on timeout it **raises**, so `_load_detector`
+    catches it → `model=None` → the node **navigates + spins normally, just captures nothing**. Proper cure
+    remains the on-disk **PE cache** (build once with network); when it exists this path is never taken.
+  - **Regression tests** (`test_detect_utils.py`, +3): bounded loader **times out → `TimeoutError`**,
+    fast model **passes through**, erroring model **propagates**. Suite now **11 passed**.
+
+- **Net:** the converged stack is verified working in sim **except** the (network-gated) YOLOE weights/CLIP
+  step; the engine no longer hangs when that step is unavailable. **M6 (legacy retirement) is now
+  unblocked** — the new inspect path is confirmed live.
+
+---
+
+## CHECKPOINT 50 — Converge onto the `-main` inspection engine (ADR-016) · M1 — 2026-06-30
+**Status:** 🟢 M1 done (build clean, nothing running changed). Decision + full plan in `docs/05-CONVERGENCE.md`.
+
+- **Discovery:** a teammate's `go2-ros2-inspection-main` is a **more advanced, cleaner parallel line** of
+  this project. A 3-way review (our 2 versions + 2 independent subagents) found theirs ahead on most axes:
+  **depth→map 3D object localization** (RGBD cam), **viewpoint + 360° spin** inspection, **async task model
+  + `cancel_task`**, **position-validation + persistence dedup**, **modular** code (`detect_utils`/
+  `report_utils`/`yoloe_tuner`), clean launch set, per-package docs. ONLY ours has **gauge value-reading**
+  (`gauge_inspector`, Claude) + the **WendyOS apps**. NEITHER has tests/CI, a mission state machine,
+  twist_mux/collision safety, benchmarking, or perception-sim realism.
+- **Decision (owner-authorised full reuse):** converge onto their engine as the base, re-add our
+  gauge reading + WendyOS apps, then exceed both. Staged M1–M7 (see ADR-016); build/verify each stage;
+  git + a tarball backup (`.convergence-backup/`) are the safety net; sim first, WendyOS last.
+- **M1 (this CP):** copied `zone_inspector.py` (920) + `detect_utils.py` + `report_utils.py` +
+  `yoloe_tuner.py` into our `go2_inspection`; registered the `zone_inspector` console_script. **Purely
+  additive** — wall-follower / mission_control / bringup / SLAM / Nav all untouched. `colcon build`
+  clean; 15-class hazard vocabulary (imgsz 1280) + helpers import; new engine present but not yet wired.
+- **Next:** M2 sim bringup (RGBD camera + direct `odom_tf` + depth bridge + `inspection_arena.sdf`) →
+  M3 async orchestration + wire `inspect_zone→zone_inspector` → M4 re-layer gauge reading → M5
+  door-aware segmenter + better frontier → M6 retire legacy → M7 tests/CI + state machine + safety +
+  benchmarking. See `docs/05-CONVERGENCE.md`.
+
+---
+
 ## CHECKPOINT 13 — Accurate odometry (gz OdometryPublisher) fixes localization drift — 2026-06-25
 **Status:** 🟢 localization now ~5 cm accurate (was drifting ~0.2–1.5 m). Root-cause fix for the
 wall-hitting/climbing + phantom 3D walls.

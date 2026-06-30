@@ -20,6 +20,13 @@ simulation/
 go2-autonomous-inspection-sim/
 go2-rtabmap-mapping-stack/
 go2-inspection/
+go2-ros2-inspection-main/
+go2-sim/.convergence-backup/
+
+# --- stray scratch notes + tool droppings (kept locally, not part of the deliverable) ---
+*.mgc
+1 weights REQUIRED for.md
+https github com Zhefan.txt
 
 # --- media / model weights / scratch ---
 *.mp4

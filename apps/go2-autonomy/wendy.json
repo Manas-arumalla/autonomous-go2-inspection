@@ -2,6 +2,9 @@
   "appId": "go2-autonomy",
   "version": "0.1.1",
   "platform": "linux/arm64",
+  "services": {
+    "autonomy": {
+      "context": "./autonomy",
       "frameworks": {
         "ros2": {
           "distro": "jazzy",
@@ -16,4 +19,6 @@
         { "type": "persist", "name": "maps", "path": "/maps" },
         { "type": "persist", "name": "data", "path": "/data" }
       ]
+    }
+  }
 }

@@ -35,9 +35,18 @@
   gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
 
-# CameraInfo (intrinsics) — needed by the RViz "Camera" display + any rectification/detection node
+# CameraInfo (intrinsics) — needed by the RViz "Camera" display + any rectification/detection node.
+# Shared by RGB and the registered depth image (same rgbd_camera intrinsics).
 - ros_topic_name: "/camera/camera_info"
   gz_topic_name: "/camera/camera_info"
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+# RGBD depth image (32FC1, registered to RGB) — enables depth->map 3D object localization in
+# zone_inspector (ADR-016 M2). Added alongside the unchanged RGB feed; SLAM stays LiDAR-only.
+- ros_topic_name: "/camera/depth/image_raw"
+  gz_topic_name: "/camera/depth_image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
   direction: GZ_TO_ROS
