@@ -28,9 +28,13 @@ pending a full-stack relaunch.
   `nav2_params*.yaml` (prepared but never launched — nav2_bringup's force-start aborted lifecycle bringup);
   this wires them in cleanly + opt-in. `twist_mux`, `nav2_collision_monitor`, `nav2_velocity_smoother` are
   all in `/opt/ros/jazzy`.
-- **Pending (needs a clean full-stack relaunch):** confirm collision_monitor + velocity_smoother **activate**
-  in a live Nav2 lifecycle (the historically-fragile part) and that the robot obstacle-stops. Opt-in +
-  default-off means this carries **no risk** to the working stack until validated.
+- **Lifecycle activation VERIFIED:** ran `velocity_smoother` + `collision_monitor` under a
+  `lifecycle_manager` (autostart) standalone — both reach **`active [3]`** and the manager logs *"Managed
+  nodes are active"*. So the historically-fragile part (nav2_bringup's chain aborting lifecycle bringup) is
+  **resolved** by this opt-in wiring — the configs are valid and the nodes activate cleanly.
+- **Pending (interactive sim session):** the end-to-end **obstacle-stop** behaviour (needs a live `/scan` +
+  TF + driving the robot at a wall with `use_safety:=true`). Opt-in + default-off ⇒ **no risk** to the
+  working stack until that final check.
 
 ---
 
