@@ -107,7 +107,7 @@ the differentiator upgrade. Keeps us off an unmaintained dependency.
 
 ## ADR-010 — **Real walking Go2 via CHAMP (port Classic→Harmonic gz_ros2_control)** — 2026-06-25
 
-**Decision (user-directed).** Replace the Stage-1 kinematic velocity base (ADR-008) with a
+**Decision.** Replace the Stage-1 kinematic velocity base (ADR-008) with a
 **real walking Go2 using CHAMP**, the way the reference repos do it — using the repos' code
 fully. **Supersedes ADR-008's "velocity base"** for the sim's locomotion (the autonomy contract
 is unchanged: CHAMP still consumes `/cmd_vel`, so SLAM/Nav2/frontier are untouched).
@@ -130,7 +130,7 @@ our Jazzy + Harmonic we swap the integration only:
 **Plan.** New `go2_gz.urdf.xacro` (Harmonic) + gz `ros_control.yaml` + a walking launch (gz +
 spawn + spawners + champ_base) → Go2 walks from `/cmd_vel`; then re-point SLAM/Nav2/frontier
 at it. **Risk retired:** CHAMP builds. **Remaining risk:** gait tuning + gz_ros2_control wiring
-on Harmonic (test under supervision — heavy launch). MuJoCo locomotion (ADR-006) and the lean
+on Harmonic (verify carefully — heavy launch). MuJoCo locomotion (ADR-006) and the lean
 velocity base (`.go2_description_lean_backup`) are kept as fallbacks.
 
 ---
@@ -159,21 +159,21 @@ Nav2 on the 8 GB Orin), **standard ROS 2 packaging** (no un-containerizable/heav
 **distro-portable code** (so a `ros:humble` rebuild is a no-redesign fallback if needed). The
 sim→real transfer (ADR-008) lands as: same nodes, now inside Wendy containers on the dog.
 
-**Open item (non-blocking — confirm with Wendy mentors):** whether `frameworks.ros2` officially
-supports `distro: "jazzy"` or only `"humble"`. The container is self-contained either way (we
-control the base image); this only affects the `wendy device ros2` debug sidecar. Insurance:
-keep all packages distro-portable so a Humble container is a drop-in rebuild.
+**Open item (non-blocking):** whether `frameworks.ros2` officially supports `distro: "jazzy"` or
+only `"humble"`. The container is self-contained either way (it controls the base image); this
+only affects the `wendy device ros2` debug sidecar. Insurance: keep all packages distro-portable
+so a Humble container is a drop-in rebuild.
 
 ---
 
-## ADR-008 — **Velocity base + realism (no cheats); sim→real transfer plan** — 2026-06-24
+## ADR-008 — **Velocity base + realism; sim→real transfer plan** — 2026-06-24
 
 **Decision.** Sim locomotion is a **kinematic velocity base** with **realistic sensor +
 motion noise**, NOT a walking gait. The autonomy is developed/validated against this and
 transfers to the real Go2 with **no redesign** — only a thin driver + parameter tuning.
 
-**Why this is "no cheats," not a shortcut.**
-- **Localization/mapping is never cheated:** SLAM computes `map→odom` from real
+**Why this is a faithful model, not a shortcut.**
+- **Localization/mapping is never faked:** SLAM computes `map→odom` from real
   scan-matching; we never publish a ground-truth `map→base`. The robot genuinely
   localizes+maps from sensor data.
 - **The real Go2 uses neither a velocity base nor CHAMP** — it walks via Unitree's closed
@@ -184,7 +184,7 @@ transfers to the real Go2 with **no redesign** — only a thin driver + paramete
   Go2_planner_suite walks via CHAMP (Gazebo Classic); **exploration_go2 didn't simulate
   the legs at all (used a TurtleBot3)**; Go2-Inspector has no sim. Velocity base = the
   exploration_go2 approach, with the real Go2 body.
-- **Realism we ADD (the actual "no cheats" work):** L1 LiDAR Gaussian noise, odometry
+- **Realism I add (the substantive modeling work):** L1 LiDAR Gaussian noise, odometry
   drift, and Go2-matched velocity/acceleration limits + slip on `/cmd_vel` — so the
   autonomy is tuned against imperfect data.
 
@@ -204,9 +204,9 @@ policy so the legs visibly walk — purely for demo polish, behind the same `/cm
 
 ## ADR-007 — **Hardware-mirrored topic/frame contract + L1 LiDAR + lean for Orin/Wendy** — 2026-06-24
 
-**Decision (from the user's hardware answers).** The sim **mirrors the real Go2 EDU's
-native ROS 2 interface exactly**, the autonomy targets the **built-in Unitree L1 LiDAR**,
-and the production stack runs **onboard the Jetson Orin Nano via Wendy** (lean).
+**Decision.** The sim **mirrors the real Go2 EDU's native ROS 2 interface exactly**, the
+autonomy targets the **built-in Unitree L1 LiDAR**, and the production stack runs **onboard
+the Jetson Orin Nano via WendyOS** (lean).
 
 **The frozen sim↔real contract** (identical in sim and on the dog):
 | Signal | Topic | Type | Frame |
@@ -274,6 +274,6 @@ Unitree's own walking. The autonomy stack (SLAM/Nav2/frontier) is **sim-agnostic
 consumes only `/cmd_vel`, `/odom`, LiDAR `PointCloud2`, TF — unchanged. Position vs effort in
 Gazebo is purely how the *simulated* legs realise the gait; it never ships to the Jetson/Wendy.
 
-**Status.** Implemented; under supervised verification (does it stand still + walk cleanly from
-`/cmd_vel`). Fallback if position tracking looks too rigid: add gz joint PID `<param>` gains or
-re-tune the effort path for DART.
+**Status.** Implemented; pending verification (stands still and walks cleanly from `/cmd_vel`).
+Fallback if position tracking looks too rigid: add gz joint PID `<param>` gains or re-tune the
+effort path for DART.

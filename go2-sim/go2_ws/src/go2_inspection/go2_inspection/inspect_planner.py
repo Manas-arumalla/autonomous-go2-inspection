@@ -132,3 +132,36 @@ def sharpness(gray):
     import cv2
 
     return float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+
+def weak_duplicate_map(objects, radius, obs_frac):
+    """Map {weak_index: strong_index} of localization-noise duplicates to consolidate. A detection is a
+    WEAK duplicate of a stronger same-class one when it sits within `radius` AND was seen in <= obs_frac of
+    the stronger's frames. (The looser depth gate that fixes recall can localize a few sparse-depth frames
+    of one gauge ~1 m off — a weak outlier — so a single object splits into a strong detection plus a weak
+    ghost.) Two comparably-well-seen DISTINCT objects (observation ratio > obs_frac) are never paired, so
+    recall is preserved; the radius is the primary same-object prior (facility gauges are metres apart).
+    Pure: objects = [{"world": [x, y, ...], "class": str, "n_observations": int, "localized": bool}, ...].
+    A strong object is never itself absorbed (strongest-first), so the map has no chains."""
+    idx = [
+        i
+        for i, o in enumerate(objects)
+        if o.get("localized") and o.get("world") and o["world"][0] is not None
+    ]
+    idx.sort(key=lambda i: objects[i]["n_observations"], reverse=True)  # strongest first
+    absorbed = {}
+    for si in idx:
+        if si in absorbed:
+            continue
+        s = objects[si]
+        for wi in idx:
+            if wi == si or wi in absorbed:
+                continue
+            w = objects[wi]
+            if w.get("class") != s.get("class"):
+                continue
+            if w["n_observations"] > obs_frac * s["n_observations"]:
+                continue  # comparably well-seen -> a distinct object, keep it
+            if math.hypot(w["world"][0] - s["world"][0], w["world"][1] - s["world"][1]) <= radius:
+                absorbed[wi] = si
+    return absorbed

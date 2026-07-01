@@ -40,8 +40,8 @@ controller_server:
                                  # enforcing one made MPPI spin-in-place at the goal (the "circling").
       stateful: true
     FollowPath:
-      # DWB — the SIMPLE, PROVEN local planner behind our confirmed-perfect 2D facility exploration
-      # (reverted from MPPI/RPP per user: keep it simple). Limits match the Go2 trot (vx<=0.26,
+      # DWB — the SIMPLE, PROVEN local planner behind the confirmed-reliable 2D facility exploration
+      # (reverted from MPPI/RPP to keep it simple). Limits match the Go2 trot (vx<=0.26,
       # wz<=0.5). vtheta_samples raised to 40 so it always has a valid in-place turn (no freeze).
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: true
@@ -49,7 +49,7 @@ controller_server:
                                      # well (rear LiDAR dead zone). It now only goes forward / turns in place;
                                      # backing out of a wedge is left to Nav2's collision-aware BackUp recovery.
       max_vel_x: 0.26
-      # OMNIDIRECTIONAL (CP46): the Go2 is holonomic -- it can strafe (the CHAMP gait allows vy<=0.25). Let DWB
+      # OMNIDIRECTIONAL: the Go2 is holonomic -- it can strafe (the CHAMP gait allows vy<=0.25). Let DWB
       # sample LATERAL trajectories so the planner can SIDESTEP in tight spaces instead of only turning in place
       # (the Go2 is 0.31m wide vs 0.70m long, so it fits sideways through gaps it can't enter nose-first).
       # Conservative 0.15 m/s = the validated sweep strafe speed (real-robot-safe); raise toward 0.25 if stable.
@@ -183,7 +183,7 @@ local_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 2.5     # LOW = wide, gentle gradient -> a cost basin that CENTRES the path in
                                      # corridors. A high factor (Nav2 default 10) is the classic wall-hugger.
-        inflation_radius: 0.35       # CP48: 0.7 filled the narrow maze corridors edge-to-edge (gradients from
+        inflation_radius: 0.35       # 0.7 filled the narrow maze corridors edge-to-edge (gradients from
                                      # both walls met -> NO clear lane -> planner stuck at the corridor mouth).
                                      # 0.35 keeps ~0.20m off the footprint edge and still centres the path in a
                                      # corridor; nudge up only if the gait clips walls near doorways.
@@ -228,7 +228,7 @@ global_costmap:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 2.5     # LOW = wide, gentle gradient -> a cost basin that CENTRES the path in
                                      # corridors. A high factor (Nav2 default 10) is the classic wall-hugger.
-        inflation_radius: 0.35       # CP48: 0.7 filled the narrow maze corridors edge-to-edge (gradients from
+        inflation_radius: 0.35       # 0.7 filled the narrow maze corridors edge-to-edge (gradients from
                                      # both walls met -> NO clear lane -> planner stuck at the corridor mouth).
                                      # 0.35 keeps ~0.20m off the footprint edge and still centres the path in a
                                      # corridor; nudge up only if the gait clips walls near doorways.

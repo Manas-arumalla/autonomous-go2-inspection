@@ -5,7 +5,7 @@ auto-segmented map. NO hard-coded poses or strafe widths -> works in any world /
 From HOME, for each candidate zone (from zones.yaml):
   Nav2 -> zone centre  ->  zone_sweeper(find_wall): rotate + camera-detect the gauge wall -> approach ->
   square-up (/scan) -> strafe with extent DERIVED from the zone polygon -> back-off  ->  panorama_segmenter
-  (FastSAM crops)  ->  (optional) gauge_inspector (Claude, if ANTHROPIC_API_KEY)  ->  return HOME  ->  one
+  (FastSAM crops)  ->  (optional) gauge_inspector (Anthropic API, if ANTHROPIC_API_KEY)  ->  return HOME  ->  one
   facility report. Everything per-room is DISCOVERED, not configured.
 
   ros2 launch go2_bringup mission.launch.py                 # all candidate zones
@@ -17,7 +17,7 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 from nav2_msgs.action import NavigateToPose
 
-# env-driven for the container (persisted /data volume; the Claude reader runs in whatever python has the
+# env-driven for the container (persisted /data volume; the LLM reader runs in whatever python has the
 # anthropic SDK -- on the Go2 that's the system python, so VENV_PY defaults to it).
 GAUGES_ROOT = os.path.expanduser(os.environ.get("GAUGES_ROOT", "~/gauges"))
 VENV_PY = os.environ.get("GAUGE_PYTHON", os.path.expanduser("~/gauge_venv/bin/python"))
@@ -79,7 +79,7 @@ def _run(cmd, timeout, label):
 
 def inspect_zone(zone_id, zones_file, do_read=True, ust="false"):
     """MAP-DRIVEN wall follow (one panorama per wall, always facing it) -> YOLOE segment each panorama
-    -> (optional) Claude read. Set INSPECT_LEGACY=1 to fall back to the perception-driven single-wall
+    -> (optional) LLM read. Set INSPECT_LEGACY=1 to fall back to the perception-driven single-wall
     zone_sweeper + FastSAM. Both produce ~/gauges/<zone>/gauges.json in the same schema. ust = use_sim_time
     for the child nodes (false on the real Go2)."""
     zone_dir = os.path.join(GAUGES_ROOT, zone_id)

@@ -192,7 +192,7 @@ class MissionControl(Node):
             "-p",
             f"goto_home:={'true' if goto_home else 'false'}",
             "-p",
-            f"read:={'true' if read else 'false'}",  # ADR-016 M4: also Claude-read detected gauges
+            f"read:={'true' if read else 'false'}",  # ADR-016 M4: also model-read detected gauges
         ]
 
     @staticmethod

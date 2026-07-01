@@ -3,7 +3,7 @@
   <name>go2_bringup</name>
   <version>0.1.0</version>
   <description>Bringup: gz sim + ros_gz bridge + slam_toolbox + Nav2 launch</description>
-  <maintainer email="manasreddyarumalla@gmail.com">team</maintainer>
+  <maintainer email="manasreddyarumalla@gmail.com">Manas Arumalla</maintainer>
   <license>MIT</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>ros_gz_sim</depend>

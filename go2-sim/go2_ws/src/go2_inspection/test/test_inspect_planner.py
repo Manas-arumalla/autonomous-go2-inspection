@@ -90,3 +90,47 @@ def test_make_is_free_reads_mask():
     assert is_free(0.55, 0.85) is False
     assert is_free(0.25, 0.85) is True  # a free cell, same row
     assert is_free(-5.0, 0.0) is False  # out of bounds
+
+
+# ---- weak_duplicate_map: observation-aware consolidation of localization-noise duplicates ----
+from go2_inspection.inspect_planner import weak_duplicate_map  # noqa: E402
+
+
+def _obj(x, y, n, cls="gauge", localized=True):
+    return {"world": [x, y, 0.45], "class": cls, "n_observations": n, "localized": localized}
+
+
+def test_weak_duplicate_merges_real_v7_case():
+    # the actual zone_0 split: strong obs=19 @ (5.95,2.02), weak obs=7 @ (5.81,1.28), 0.75 m apart
+    objs = [_obj(5.95, 2.02, 19), _obj(5.81, 1.28, 7)]
+    amap = weak_duplicate_map(objs, radius=1.5, obs_frac=0.5)
+    assert amap == {1: 0}  # the weak (index 1) folds into the strong (index 0)
+
+
+def test_weak_duplicate_preserves_two_distinct_well_seen_gauges():
+    # two comparably-observed gauges (recall must NOT merge them even if within radius)
+    objs = [_obj(0.0, 0.0, 20), _obj(0.8, 0.0, 16)]  # 16/20 = 0.8 > obs_frac
+    assert weak_duplicate_map(objs, radius=1.5, obs_frac=0.5) == {}
+
+
+def test_weak_duplicate_keeps_far_apart_objects():
+    # a weak detection far (> radius) from the strong one is its own object, not a duplicate
+    objs = [_obj(0.0, 0.0, 30), _obj(3.0, 0.0, 4)]
+    assert weak_duplicate_map(objs, radius=1.5, obs_frac=0.5) == {}
+
+
+def test_weak_duplicate_never_merges_across_classes():
+    objs = [_obj(0.0, 0.0, 30, cls="gauge"), _obj(0.5, 0.0, 3, cls="valve")]
+    assert weak_duplicate_map(objs, radius=1.5, obs_frac=0.5) == {}
+
+
+def test_weak_duplicate_ignores_unlocalized():
+    objs = [_obj(0.0, 0.0, 30), _obj(0.5, 0.0, 3, localized=False)]
+    assert weak_duplicate_map(objs, radius=1.5, obs_frac=0.5) == {}
+
+
+def test_weak_duplicate_no_chains_strong_never_absorbed():
+    # one strong + two weak ghosts within radius -> both ghosts fold into the strong, strong stays
+    objs = [_obj(0.0, 0.0, 40), _obj(0.6, 0.0, 5), _obj(-0.6, 0.2, 4)]
+    amap = weak_duplicate_map(objs, radius=1.5, obs_frac=0.5)
+    assert amap == {1: 0, 2: 0}

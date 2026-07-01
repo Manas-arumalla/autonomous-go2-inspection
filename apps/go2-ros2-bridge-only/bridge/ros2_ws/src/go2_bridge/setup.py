@@ -19,8 +19,8 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='ee-hackathon',
-    maintainer_email='team@hackathon.dev',
+    maintainer='Manas Arumalla',
+    maintainer_email='manasreddyarumalla@gmail.com',
     description='Bridge nodes for Unitree Go2 on ROS2 Jazzy',
     license='MIT',
     entry_points={

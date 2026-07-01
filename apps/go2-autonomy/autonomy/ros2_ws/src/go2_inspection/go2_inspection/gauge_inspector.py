@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-"""gauge_inspector -- Phase 4 of the autonomous gauge inspection: read each cropped gauge with Claude
-and write the inspection-report CSV.
+"""gauge_inspector -- Phase 4 of the autonomous gauge inspection: read each cropped gauge via the
+Anthropic API and write the inspection-report CSV.
 
 INPUT  (from panorama_segmenter, Phase 3):  ~/gauges/<zone>/gauges.json + gauges/gauge_NN.png
 OUTPUT: ~/gauges/<zone>/inspection_report.csv  (+ readings.json with the full reasoning)
         columns: ID, Zone, Type, Reading, Unit, SI_Unit, Range, Risk, Confidence
 
-WHY a REASONING-FIRST prompt (not "what's the value?"): VLMs incl. Claude are unreliable at reading an
+WHY a REASONING-FIRST prompt (not "what's the value?"): VLMs are unreliable at reading an
 analog VALUE in one shot (MeasureBench: unit ~95% right but value ~15-31%). The crop is clean + full
-(Phase 3), and we force Claude to reason in the order a human does -- find the numbered ticks, the unit,
-which two ticks the NEEDLE TIP lies between, THEN interpolate -- and to judge risk from the RED danger
-arc it can see. We also collect a confidence so a low-confidence reading can be flagged for review. No
-ground-truth is given to the model (it reads the range off the dial itself) -> ports to the real robot.
+(Phase 3), and the prompt forces the model to reason in the order a human does -- find the numbered ticks,
+the unit, which two ticks the NEEDLE TIP lies between, THEN interpolate -- and to judge risk from the RED
+danger arc it can see. It also collects a confidence so a low-confidence reading can be flagged for
+review. No ground-truth is given to the model (it reads the range off the dial itself) -> ports to the
+real robot.
 
-This is the robust, scriptable, ON-DEVICE/real-time path (one Claude call per gauge, POST-sweep, off the
-locomotion loop). The brief-faithful transport (Claude Desktop/Code via MCP) is mcp_gauge_server.py,
+This is the robust, scriptable, ON-DEVICE/real-time path (one API call per gauge, POST-sweep, off the
+locomotion loop). An alternate MCP transport (an MCP client via MCP) is mcp_gauge_server.py,
 which reuses READ_TOOL + the prompt below. claude-opus-4-8 for accuracy (post-sweep, not in-loop);
 claude-haiku-4-5 if latency matters more than a few % accuracy.
 """
@@ -26,7 +27,7 @@ SYSTEM = (
     "commit to a value, and never guess a precise number you cannot justify from the visible ticks."
 )
 
-# Reasoning-first instructions. Claude must work through these BEFORE filling the structured tool.
+# Reasoning-first instructions. The model must work through these BEFORE filling the structured tool.
 PROMPT = (
     "Read this analog gauge. Work through it IN THIS ORDER, then call report_gauge:\n"
     "1. TYPE: read the printed label (PRESSURE / VOLTAGE / TEMPERATURE / CURRENT / FLOW / other).\n"
@@ -65,7 +66,7 @@ READ_TOOL = {
 
 
 def read_one(client, crop_path, model):
-    """One Claude call -> structured reading dict (raises on API error)."""
+    """One API call -> structured reading dict (raises on API error)."""
     with open(crop_path, "rb") as f:
         b64 = base64.standard_b64encode(f.read()).decode()
     msg = client.messages.create(
@@ -136,7 +137,7 @@ def inspect(zone_dir, model="claude-opus-4-8", gt_path=None):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Claude reasoning-first gauge reading -> CSV (Phase 4).")
+    ap = argparse.ArgumentParser(description="Reasoning-first gauge reading -> CSV (Phase 4).")
     ap.add_argument("zone_dir", nargs="?", default="~/gauges/zone_1")
     ap.add_argument("--model", default="claude-opus-4-8")
     ap.add_argument("--groundtruth", default=None, help="optional gauges_groundtruth.json to score against")

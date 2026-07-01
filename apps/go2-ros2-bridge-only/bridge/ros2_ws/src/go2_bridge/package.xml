@@ -4,7 +4,7 @@
   <name>go2_bridge</name>
   <version>0.1.0</version>
   <description>Bridge nodes for Unitree Go2 on ROS 2 Jazzy: odom to TF, lowstate to joint_states, cmd_vel to sport_api, sensor bridge, and topic monitor.</description>
-  <maintainer email="team@hackathon.dev">ee-hackathon</maintainer>
+  <maintainer email="manasreddyarumalla@gmail.com">Manas Arumalla</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_python</buildtool_depend>

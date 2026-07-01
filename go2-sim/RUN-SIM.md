@@ -1,11 +1,11 @@
-# Run the full simulation — Gazebo → map/nav → inspect → Claude/MCP read
+# Run the full simulation — Gazebo → map/nav → inspect → report
 
 All commands assume this workspace. **Every terminal** needs the env + source below.
 The `FASTDDS_BUILTIN_TRANSPORTS=UDPv4` line is REQUIRED (without it stale DDS shm can stop the robot moving).
 
 ## 0. One-time setup (run once)
 ```bash
-WS="/home/manas-reddy/Downloads/EE26 Hackathon/go2-sim"
+WS="$HOME/autonomous-go2-inspection/go2-sim"   # adjust to your checkout
 # no-space symlink the map_server + mission use:
 ln -sfn "$WS/maps" ~/.go2_maps
 # load the pre-built facility map so the robot can localize (skip if you re-map in step F):
@@ -17,7 +17,7 @@ cd "$WS/go2_ws" && source /opt/ros/jazzy/setup.bash && colcon build --symlink-in
 ## Per-terminal header (paste at the top of EVERY terminal)
 ```bash
 export FASTDDS_BUILTIN_TRANSPORTS=UDPv4
-cd "/home/manas-reddy/Downloads/EE26 Hackathon/go2-sim/go2_ws"
+cd "$HOME/autonomous-go2-inspection/go2-sim/go2_ws"   # adjust to your checkout
 source /opt/ros/jazzy/setup.bash && source install/setup.bash
 # if Gazebo doesn't appear, set your display, e.g.:  export DISPLAY=:0
 ```
@@ -28,8 +28,8 @@ source /opt/ros/jazzy/setup.bash && source install/setup.bash
 
 Inspection is **`zone_inspector`**: it samples safe viewpoints per zone → Nav2 to each → a 360° in-place
 spin running **live YOLOE** open-vocab detection → projects each detection to a **3D map position** through
-the RGBD depth camera (map-position validation + persistence dedup) → crops every gauge → Claude reads the
-crops (type · unit · value · risk). It's driven by the **async service layer** (`mission_control_server`),
+the RGBD depth camera (map-position validation + persistence dedup) → crops every gauge → the Anthropic API
+reads the crops (type · unit · value · risk). It's driven by the **async service layer** (`mission_control_server`),
 exposed as natural-language tools by the **14-tool MCP server**. Run it via **§ G** below; build a map with
 **§ F**. `get_status` / `get_events` report the live mission phase.
 
@@ -55,7 +55,7 @@ ros2 run go2_exploration frontier_explorer --ros-args -p use_sim_time:=true -p a
 ```
 Save the map when done (T5, header first, while the stack is still up):
 ```bash
-WS="/home/manas-reddy/Downloads/EE26 Hackathon/go2-sim"
+WS="$HOME/autonomous-go2-inspection/go2-sim"   # adjust to your checkout
 python3 "$WS/maps/map_grab.py" "$WS/maps/my_map.npz"                                     # 2D grid -> npz
 python3 "$WS/go2_ws/src/go2_zones/go2_zones/zone_segmenter.py" "$WS/maps/my_map.npz"     # -> zones.yaml + viz
 python3 "$WS/maps/npz_to_map.py" "$WS/maps/my_map.npz"                                   # -> my_map.pgm + .yaml
@@ -98,7 +98,7 @@ cp maps/maze.db ~/.ros/rtabmap.db                # localize on the maze map
 # --- drive it with services ---
 ros2 service call /list_zones       $T "{}"                              # see the maze zones (pick the gauge rooms)
 ros2 service call /navigate_to_zone $T "{zone_id: zone_1}"              # zone approach only
-ros2 service call /inspect_zone     $T "{zone_id: zone_1, read: false}" # zone_inspector: viewpoints -> 360° spin -> YOLOE + depth-3D (read:true also Claude-reads gauges; needs ANTHROPIC_API_KEY)
+ros2 service call /inspect_zone     $T "{zone_id: zone_1, read: false}" # zone_inspector: viewpoints -> 360° spin -> YOLOE + depth-3D (read:true also reads gauges via the Anthropic API; needs ANTHROPIC_API_KEY)
 ros2 service call /run_mission      $T "{zone_id: all, read: false}"    # all gauge rooms -> one facility report
 ros2 service call /get_status       $T "{}"                            # busy / task / mission phase
 ros2 service call /get_events       $T "{}"                            # full structured mission event stream
@@ -129,21 +129,21 @@ Benchmark a run vs world ground truth: `ros2 run go2_inspection benchmark <world
 - **Ground showing as voxels / in the costmap?** Fixed by two params: octomap `pointcloud_min_z=0.08` drops
   the floor from the 3D voxel viz; `/scan` `min_height=-0.14` (pointcloud_to_laserscan.yaml) keeps an ~8 cm
   floor-rejection margin so the L1's down-pitched ground returns stop polluting the Nav2 obstacle_layer.
-- **MODE 2 map/robot ROTATED vs the static map?** FIXED (CP45): in a near-symmetric world rtabmap was doing a
+- **MODE 2 map/robot ROTATED vs the static map?** Fixed: in a near-symmetric world rtabmap was doing a
   GLOBAL relocalization at startup and snapping to a *rotated* match. Added `RGBD/StartAtOrigin:true` to
   rtabmap's **localization** params — the robot always respawns at HOME = the map origin. Still ensure the
   **matching DB**: `cp maps/<map>.db ~/.ros/rtabmap.db`. **Real-robot caveat:** StartAtOrigin assumes the dog
   is placed *exactly* at HOME — a hand-placement error becomes a fixed offset; mark a HOME spot / publish an
   `/initialpose`.
-- **Exploration STOPS while areas remain, or sends one long far goal?** FIXED (CP45): `frontier_explorer`
+- **Exploration STOPS while areas remain, or sends one long far goal?** Fixed: `frontier_explorer`
   caps each goal at `max_goal_distance` (3.0 m) — it STEPS toward distant frontiers via short reachable
   goals — and doesn't quit the instant frontiers look empty (clears the TTL blacklist and retries, requiring
   `done_confirm` consecutive empty cycles, refreshed only on real map growth). Tune `-p max_goal_distance:=<m>`
   (raise to ~6 for the big facility; 3.0 suits the maze). Sub-0.6 m aisles: lower `-p goal_clearance:=0.22`.
-- **Planner stuck at a corridor mouth (CP48):** the costmap `inflation_radius` was 0.7 m, filling the narrow
+- **Planner stuck at a corridor mouth:** the costmap `inflation_radius` was 0.7 m, filling the narrow
   maze corridors edge-to-edge. Lowered to **0.35 m** in both costmaps (`nav2_params_rtab.yaml`). Tune live:
   `ros2 param set /global_costmap/global_costmap inflation_layer.inflation_radius 0.35` (and `/local_costmap`).
-- **Frontier goal sits against a wall / Nav2 can't reach it?** FIXED (CP47): `goal_clearance` default raised to
+- **Frontier goal sits against a wall / Nav2 can't reach it?** Fixed: `goal_clearance` default raised to
   **0.6 m** → frontiers are only chosen ≥0.6 m from any wall. Narrow (~0.9 m) doorways: lower with
   `-p goal_clearance:=0.45` so rooms behind them aren't skipped.
 - **`/get_status` known% stuck at ~80%?** Not stale — that IS completed coverage. The grid bbox always

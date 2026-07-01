@@ -13,7 +13,7 @@ memory-managed graph-SLAM node that publishes:
   ros2 launch go2_bringup rtabmap_slam.launch.py world:=facility.sdf headless:=true  # headless gz
   ros2 launch go2_bringup rtabmap_slam.launch.py localization:=true                  # localize on saved DB
 
-Why this works where the CP11 LiDAR-only attempt drifted: now we ALSO use the RGB camera (visual loop
+Why this works where an earlier LiDAR-only attempt drifted: now we ALSO use the RGB camera (visual loop
 closure) + the accurate fused /odom (not RTAB-Map's own ICP odom) + Reg/Force3DoF (ground-plane lock).
 Sim-agnostic: identical topics on the real Go2 (ADR-002/007); Orin-friendly (DetectionRate 2Hz, lean ICP).
 """
@@ -65,8 +65,8 @@ def generate_launch_description():
         "use_sim_time": True,
         "frame_id": "base_link",
         "map_frame_id": "map",
-        # PURE-LIDAR SLAM (per user: the RGB-colour-on-3D-points requirement is dropped -- focus on the
-        # frontier-exploration rtab approach). rtabmap localizes + builds the 2D grid + pose graph from the
+        # PURE-LIDAR SLAM (the RGB-colour-on-3D-points path is dropped -- focus on the
+        # frontier-exploration RTAB-Map approach). rtabmap localizes + builds the 2D grid + pose graph from the
         # 3D LiDAR + the accurate fused /odom; NO camera into SLAM, which also avoids the repetitive-facility
         # false visual loop closure that teleported the graph. The RGB camera stays available for the
         # inspection report (the end goal), just not for SLAM/3D colour.
@@ -76,11 +76,15 @@ def generate_launch_description():
         "approx_sync": True,                 # LiDAR 10Hz / cam 15Hz / odom 50Hz aren't time-synced
         "approx_sync_max_interval": 0.0,     # 0 = no interval cap (sync the nearest in time)
         "sync_queue_size": 30,
-        "wait_for_transform": 0.5,           # patience for the odom->base_link TF (sensor leads TF by ms)
+        "wait_for_transform": 2.0,           # patience for the odom->base_link TF. Was 0.5; bumped so that
+                                             # under CPU starvation (Gazebo+Nav2+YOLOE contending) -- where the
+                                             # EKF odom->base_link can lag the scan stamp by ~0.4-0.5 s -- rtabmap
+                                             # waits for the lagging TF instead of dropping the scan and losing
+                                             # localization mid-mission.
         "qos_image": 1, "qos_camera_info": 1, "qos_scan": 1, "qos_odom": 1,
         # --- registration + loop closure ---
         "Reg/Strategy": "1",                 # ICP (strong geometric registration from the 3D LiDAR)
-        "Reg/Force3DoF": "true",             # ground robot: lock z/roll/pitch (was the CP11 drift fix)
+        "Reg/Force3DoF": "true",             # ground robot: lock z/roll/pitch (was an earlier drift fix)
         "Icp/VoxelSize": "0.05",
         "Icp/PointToPlane": "true",
         "Icp/MaxCorrespondenceDistance": "0.3",
@@ -122,7 +126,7 @@ def generate_launch_description():
         ("odom", "/odom"),
         # RTAB-Map's 2D grid topic IS 'map'. Default -> /map (mapping/exploration). For the MISSION we set
         # grid_topic:=/rtabmap/grid_map so a STATIC map_server owns /map (full facility), while RTAB-Map
-        # localization only provides map->odom + its local grid elsewhere (CP39: rtabmap loc /map is partial).
+        # localization only provides map->odom + its local grid elsewhere.
         ("map", LaunchConfiguration("grid_topic")),
     ]
     map_params = dict(rtabmap_params); map_params["Mem/IncrementalMemory"] = "true"   # SLAM
@@ -131,7 +135,7 @@ def generate_launch_description():
     # The robot ALWAYS (re)spawns at HOME = the map origin (mapping started there), so ASSUME the start pose
     # is the map origin instead of doing a GLOBAL relocalization -- which, in a near-symmetric world (the
     # maze), snapped to a ROTATED match so the static /map and the live localized frame appeared misaligned
-    # (CP45). Localization-mode ONLY: SLAM (-d) + continue modes never set this, so mapping is unaffected.
+    #. Localization-mode ONLY: SLAM (-d) + continue modes never set this, so mapping is unaffected.
     loc_params["RGBD/StartAtOrigin"] = "true"
     # CONTINUE: keep mapping (IncrementalMemory stays true) but LOAD all nodes of the existing DB into
     # working memory so the FULL prior map is active + republished, then extend it. No -d (don't wipe).

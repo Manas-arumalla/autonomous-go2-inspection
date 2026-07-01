@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Convert a saved occupancy-grid .npz (grid int16 {-1,0,100}, res, origin_x, origin_y) into the
 standard nav2 map_server format (.pgm + .yaml), so a static map_server can serve the FULL facility grid
-to Nav2's global costmap (rtabmap's own /map is only a local window in localization mode -- CP39).
+to Nav2's global costmap (rtabmap's own /map is only a local window in localization mode).
 
   python3 npz_to_map.py facility_inspection_map.npz   ->  facility_inspection_map.pgm + .yaml
 """

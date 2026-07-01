@@ -69,9 +69,11 @@ class ZoneInspector(Node):
             self.declare_parameter("safety_margin", 0.5).value
         )  # erode poly (m)
         self.vp_spacing = float(
-            self.declare_parameter("vp_spacing", 3.0).value
-        )  # grid spacing (m)
-        self.max_viewpoints = int(self.declare_parameter("max_viewpoints", 4).value)
+            self.declare_parameter("vp_spacing", 2.5).value
+        )  # grid spacing (m). Was 3.0; densified so a far-corner gauge is also seen from a CLOSER viewpoint
+        #    (closer => denser depth => more localized observations), improving recall without lowering any
+        #    detection threshold.
+        self.max_viewpoints = int(self.declare_parameter("max_viewpoints", 5).value)  # was 4
         self.grid_res = float(self.declare_parameter("grid_res", 0.1).value)  # poly raster res
         self.spin_speed = float(
             self.declare_parameter("spin_speed", 0.4).value
@@ -111,8 +113,31 @@ class ZoneInspector(Node):
         )  # spin sees all bearings
         # --- depth -> map projection ---
         self.max_depth = float(self.declare_parameter("max_depth", 6.0).value)
-        self.min_valid_frac = float(self.declare_parameter("min_valid_frac", 0.30).value)
+        # Depth-localization gate. The OLD rule "≥30% of the bbox depth-patch pixels are valid" is far too
+        # strict for a SMALL bbox (a gauge seen across the room subtends few pixels, and a thin round dial
+        # has sparse/edge-holed depth) -- so a real, correctly-seen gauge localized on only ~1 frame and got
+        # filtered by min_observations. What actually makes the median depth reliable
+        # is an ABSOLUTE count of valid samples, not a fraction of a tiny patch. So require
+        # max(min_valid_px, min_valid_frac·patch): the absolute floor protects tiny bboxes, the (lowered)
+        # fraction still guards a large mostly-invalid patch. Principled (geometry of distant objects), not
+        # tuned to any target.
+        self.min_valid_frac = float(self.declare_parameter("min_valid_frac", 0.15).value)
+        self.min_valid_px = int(self.declare_parameter("min_valid_px", 12).value)
         self.dedup_radius = float(self.declare_parameter("dedup_radius", 0.6).value)
+        # Final-pass consolidation of localization-noise duplicates. A weak (few-frame) detection can land
+        # ~1 m off a strong one of the SAME object (noisy median depth), escaping dedup_radius -> two
+        # markers for one gauge. Absorb a weak detection into a MUCH stronger same-class one within
+        # consolidate_radius, but ONLY when the weak has <= consolidate_obs_frac of the strong's
+        # observations -- so two comparably-well-seen DISTINCT objects are never merged (recall preserved).
+        # Uses only observation counts + geometry; no ground truth.
+        self.consolidate_radius = float(self.declare_parameter("consolidate_radius", 1.5).value)
+        # weak := seen <= consolidate_obs_frac of the stronger one's frames. The looser depth gate that
+        # fixed recall (min_valid_px) also lets a few sparse-depth frames localize an object ~0.7-1 m off
+        # (noisy Z) -> a weak outlier of the SAME gauge. Across runs these outliers are 0.11-0.37 of the
+        # strong detection's observations; 0.5 absorbs them with margin while still keeping two
+        # comparably-well-seen DISTINCT gauges separate (the 1.5 m radius is the primary same-object prior;
+        # gauges in a facility are metres apart). Recall-safe.
+        self.consolidate_obs_frac = float(self.declare_parameter("consolidate_obs_frac", 0.5).value)
         self.capture_pad = float(self.declare_parameter("capture_pad", 0.10).value)
         # detect-then-approach (ADR-017): after the survey/spin localizes gauges, drive to a CLOSE,
         # fronto-parallel, resolution-driven standoff per gauge and grab a high-res read crop. Default OFF
@@ -1093,7 +1118,10 @@ class ZoneInspector(Node):
             return None
         patch = depth[iy0:iy1, ix0:ix1]
         valid = patch[np.isfinite(patch) & (patch > 0.2) & (patch < self.max_depth)]
-        if valid.size == 0 or valid.size < self.min_valid_frac * max(1, patch.size):
+        # enough valid samples for a reliable median: an absolute floor (protects small/distant bboxes)
+        # OR a fraction of the patch (guards a large mostly-invalid one) -- whichever is larger.
+        need = max(self.min_valid_px, self.min_valid_frac * max(1, patch.size))
+        if valid.size == 0 or valid.size < need:
             return None
         Z = float(np.median(valid))
         fx, fy, cx, cy = self.K
@@ -1211,9 +1239,40 @@ class ZoneInspector(Node):
         cv2.imwrite(os.path.join(cdir, fn), crop_bgr)
         obj["crop"] = f"crops/{fn}"
 
+    def _consolidate_duplicates(self):
+        """Merge weak localization-noise duplicates into their strong same-class parent. A detection seen
+        in only a few frames can have a position ~1 m off (noisy median depth), creating a second marker
+        for one physical object that escapes dedup_radius. Absorb the weak one into a much stronger
+        same-class one within consolidate_radius, but ONLY when the weak has <= consolidate_obs_frac of the
+        strong's observations -- so two comparably-well-seen DISTINCT objects are never merged (recall
+        preserved). Observation counts + geometry only; no ground truth."""
+        from go2_inspection import inspect_planner as ip
+
+        amap = ip.weak_duplicate_map(
+            self.objects, self.consolidate_radius, self.consolidate_obs_frac
+        )
+        if not amap:
+            return
+        d = os.path.join(self.out_dir, self.zone_id)
+        for wi, si in amap.items():  # fold the weak ghost's frames into its strong parent, drop its crop
+            self.objects[si]["n_observations"] += self.objects[wi]["n_observations"]
+            if self.objects[wi].get("crop"):
+                try:
+                    os.remove(os.path.join(d, self.objects[wi]["crop"]))
+                except OSError:
+                    pass
+        self.objects = [o for i, o in enumerate(self.objects) if i not in amap]
+        self.get_logger().info(
+            f"{self.zone_id}: consolidated {len(amap)} weak duplicate(s) into a stronger "
+            f"same-class detection (localization-noise artefact)"
+        )
+
     def _finish(self):
         d = os.path.join(self.out_dir, self.zone_id)
         os.makedirs(d, exist_ok=True)
+        # consolidate weak localization-noise duplicates BEFORE the persistence filter, so an absorbed
+        # weak detection's frames count toward its strong parent's persistence.
+        self._consolidate_duplicates()
         # persistence filter: a real object is seen across many spin frames; drop those seen in fewer than
         # min_observations frames (one-shot misclassifications). Remove their now-orphan crops too.
         if self.min_observations > 1 and self.objects:

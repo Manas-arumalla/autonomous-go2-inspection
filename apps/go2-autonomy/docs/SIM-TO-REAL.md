@@ -1,7 +1,7 @@
 # Sim -> Real: what changed from `go2-sim`
 
 This app is a copy of the `go2-sim` ROS packages with the simulator removed and the hardware contract
-swapped in. The team built the sim to mirror the real `/utlidar/*` topics and the `utlidar_lidar` frame,
+swapped in. The sim was built to mirror the real `/utlidar/*` topics and the `utlidar_lidar` frame,
 so the delta is small and mostly mechanical.
 
 ## Topic / clock / frame deltas

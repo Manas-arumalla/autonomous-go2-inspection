@@ -3,14 +3,14 @@
 The robot LOCALIZES on the pre-built map and Nav2 can plan across the WHOLE facility:
   - RTAB-Map in LOCALIZATION mode loads the saved DB -> provides map->odom (+ its LOCAL grid on
     /rtabmap/grid_map, kept off /map).
-  - a static `map_server` serves the FULL saved facility grid on /map (CP39: rtabmap's own loc /map is
+  - a static `map_server` serves the FULL saved facility grid on /map (rtabmap's own loc /map is
     only a local window, so Nav2's global costmap needs this static full map instead).
   - Nav2 (the proven nav2_params_rtab tuning) plans + drives.
 Robot starts at HOME (0,0). This is the navigation foundation the mission orchestrator (5c) drives.
 
   ros2 launch go2_bringup inspection_nav.launch.py                       # headless
   ros2 launch go2_bringup inspection_nav.launch.py headless:=false       # watch in gz
-Requires the maps at ~/.go2_maps (symlink to go2-sim/maps) and FASTDDS_BUILTIN_TRANSPORTS=UDPv4 (CP39).
+Requires the maps at ~/.go2_maps (symlink to go2-sim/maps) and FASTDDS_BUILTIN_TRANSPORTS=UDPv4.
 """
 import os
 from ament_index_python.packages import get_package_share_directory

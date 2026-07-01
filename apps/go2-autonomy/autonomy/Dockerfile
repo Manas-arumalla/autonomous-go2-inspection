@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ros-jazzy-v4l2-camera ros-jazzy-image-transport-plugins ros-jazzy-cv-bridge \
     && rm -rf /var/lib/apt/lists/*
 
-# --- gauge reader (Claude) -- small. The gauge segmenter's YOLOE/torch is HEAVY on arm64 and is OPTIONAL
+# --- gauge reader (LLM) -- small. The gauge segmenter's YOLOE/torch is HEAVY on arm64 and is OPTIONAL
 #     (yoloe_segmenter degrades gracefully if ultralytics/torch is absent). Uncomment to enable on-device
 #     detection (expect a much larger/slower image; prefer a Jetson-native torch/dustynv base if you do). ---
 RUN pip3 install --no-cache-dir --break-system-packages anthropic

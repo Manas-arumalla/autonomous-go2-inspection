@@ -1,9 +1,9 @@
-# Mission-Control Service Layer — the trigger surface (pre-MCP)
+# Mission-Control Service Layer — the trigger surface
 
-The multi-terminal stack is now wrapped in **one ROS2 service node** so each capability is a single
-call. This is the foundation the WendyOS/MCP tools will sit on later: **every service maps 1:1 to a
-future MCP tool**, and the MCP server (separate process, not built yet) is just a rclpy client to
-these. Nothing here is MCP/Wendy-specific — it's pure ROS2 and runs standalone today.
+The multi-terminal stack is wrapped in **one ROS2 service node** so each capability is a single
+call. This is the foundation the MCP tools sit on: **every service maps 1:1 to an MCP tool**, and the
+MCP server (separate process) is just a rclpy client to these. Nothing here is MCP-specific — it's pure
+ROS2 and runs standalone.
 
 ## Design (why it's safe)
 `mission_control_server` is a **subprocess orchestrator** — the same pattern `inspection_mission`
@@ -76,5 +76,5 @@ ros2 service call /navigate_home    $T "{}"
   `success:false, "robot busy with '<action>'"`. Exploration must be stopped before inspecting.
 - **Standing DDS fix:** the server sets `FASTDDS_BUILTIN_TRANSPORTS=UDPv4` on every child.
 - **Reading is opt-in:** `read:true` AND `ANTHROPIC_API_KEY` in the server's env.
-- **Next (NOT done here, by request):** the WendyOS MCP server exposing these as MCP tools
-  (`get_zone_image` returning the actual image bytes, etc.).
+- **On the roadmap:** the MCP server exposing these as MCP tools (`get_zone_image` returning the actual
+  image bytes, etc.).

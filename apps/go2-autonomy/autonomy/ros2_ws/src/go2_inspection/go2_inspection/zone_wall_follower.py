@@ -14,7 +14,7 @@ Per wall segment S (endpoints A,B in map frame):
   2. SEG_GATE   : confirm a wall is actually there (/scan front ~ standoff). Open space (doorway/opening
                   the polygon also traces) -> SKIP (no wasted scan, don't drive out of the room).
   3. SEG_SQUARE : rotate so the front faces the wall NORMAL exactly (clean, parallel strafe).
-  4. SEG_SCAN   : strafe A->B along the wall. PER THE USER: only linear-y (vy strafe) + yaw (vyaw, to keep
+  4. SEG_SCAN   : strafe A->B along the wall. By design only linear-y (vy strafe) + yaw (vyaw, to keep
                   FACING the wall) are commanded -- NO vx. YOLOE runs continuously in a BACKGROUND thread
                   (off the 10 Hz control loop, real-time-safe). A confident, horizontally-centred, NOT-yet-
                   -captured detection -> SEG_CAPTURE.
@@ -23,7 +23,7 @@ Per wall segment S (endpoints A,B in map frame):
 After the last wall: BACKOFF to a nav-safe pose, write detections.json + gauges.json + a contact sheet.
 
 Output schema is UNCHANGED from the old yoloe_segmenter post-pass, so get_zone_image / get_zone_gauges /
-the Claude reader keep working:
+the LLM reader keep working:
   ~/gauges/<zone>/gauges/<type>_S<seg>_<i>.png   one clean stationary crop per detected object
   ~/gauges/<zone>/detections.json                every capture (type, conf, bbox, map_xy, file)
   ~/gauges/<zone>/gauges.json                    gauge-type crops in the reader/report schema
@@ -31,7 +31,7 @@ the Claude reader keep working:
 
   ros2 run go2_inspection zone_wall_follower --ros-args -p zone_id:=zone_0 -p zones_file:=...
 
-Camera frame + odometry/TF only (no camera extrinsic for motion). Detection reuses the team's verified
+Camera frame + odometry/TF only (no camera extrinsic for motion). Detection reuses the verified
 YOLOE model/prompts (go2_inspection.yoloe_segmenter). Degrades gracefully: if ultralytics/weights are
 absent it still scans every wall (so the motion is demonstrable) but captures nothing -> empty report.
 Runs in sim and ports unchanged to the real Go2 (set use_sim_time:=false there).

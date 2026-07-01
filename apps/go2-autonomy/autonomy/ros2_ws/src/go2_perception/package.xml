@@ -3,8 +3,8 @@
 <package format="3">
   <name>go2_perception</name>
   <version>0.1.0</version>
-  <description>Perception for the Go2 autonomous inspection: RGB+LiDAR colorization (and later SAM3/Claude inspection + reports).</description>
-  <maintainer email="manasreddyarumalla@gmail.com">EE26 team</maintainer>
+  <description>Perception for the Go2 autonomous inspection: RGB+LiDAR colorization (and later SAM3/LLM inspection + reports).</description>
+  <maintainer email="manasreddyarumalla@gmail.com">Manas Arumalla</maintainer>
   <license>Apache-2.0</license>
 
   <exec_depend>rclpy</exec_depend>

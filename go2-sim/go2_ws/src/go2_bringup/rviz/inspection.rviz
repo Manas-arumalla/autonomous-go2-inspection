@@ -1,0 +1,149 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Global Options:
+    Fixed Frame: map
+    Frame Rate: 20
+    Background Color: 48; 48; 48
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Color: 120; 120; 130
+      Plane Cell Count: 24
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: false
+      Show Names: false
+      Marker Scale: 0.5
+    # ---- the robot ----
+    - Class: rviz_default_plugins/RobotModel
+      Name: Go2 Robot
+      Enabled: true
+      Description Topic:
+        Value: /robot_description
+        Depth: 5
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+    # ---- the facility map (RTAB-Map 2D occupancy = the map Nav2 + frontier plan on) ----
+    - Class: rviz_default_plugins/Map
+      Name: Map (/map)
+      Enabled: true
+      Topic:
+        Value: /map
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+      Color Scheme: map
+    # ---- Nav2 local costmap (the live planning window: inflation + obstacles around the robot) ----
+    - Class: rviz_default_plugins/Map
+      Name: Nav2 Local Costmap
+      Enabled: true
+      Topic:
+        Value: /local_costmap/costmap
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+      Color Scheme: costmap
+      Alpha: 0.6
+    # ---- Nav2 global costmap (toggle on to inspect the inflation field) ----
+    - Class: rviz_default_plugins/Map
+      Name: Nav2 Global Costmap
+      Enabled: false
+      Topic:
+        Value: /global_costmap/costmap
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+      Color Scheme: costmap
+      Alpha: 0.6
+    # ---- the live 2D lidar the robot navigates with ----
+    - Class: rviz_default_plugins/LaserScan
+      Name: LaserScan (/scan)
+      Enabled: true
+      Topic:
+        Value: /scan
+        Reliability Policy: Best Effort
+      Size (Pixels): 3
+      Color: 255; 85; 0
+    # ---- RTAB-Map 3D octomap voxels (height-coloured), the dense map ----
+    - Class: rviz_default_plugins/MarkerArray
+      Name: RTAB-Map 3D (OctoMap)
+      Enabled: false
+      Topic:
+        Value: /occupied_cells_vis_array
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+    # ---- raw 3D LiDAR scan, height-coloured ----
+    - Class: rviz_default_plugins/PointCloud2
+      Name: 3D LiDAR Scan
+      Enabled: false
+      Topic:
+        Value: /utlidar/cloud_deskewed
+        Durability Policy: Volatile
+        Reliability Policy: Best Effort
+      Size (Pixels): 2
+      Style: Points
+      Color Transformer: AxisColor
+      Axis: Z
+    # ---- room zones (go2_zones segmentation: one coloured polygon per room) ----
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Room Zones
+      Enabled: true
+      Topic:
+        Value: /zones
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+    # ---- frontier-exploration targets (during mapping) ----
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Frontiers
+      Enabled: true
+      Topic:
+        Value: /explore/frontiers
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+    # ---- ★ DETECTED GAUGES: 3D-localized detections + labels (the inspection output) ----
+    - Class: rviz_default_plugins/MarkerArray
+      Name: ★ Detected Gauges
+      Enabled: true
+      Topic:
+        Value: /inspection/objects
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+    # ---- Nav2 planned path ----
+    - Class: rviz_default_plugins/Path
+      Name: Nav2 Plan
+      Enabled: true
+      Topic:
+        Value: /plan
+        Reliability Policy: Best Effort
+      Color: 0; 255; 0
+      Line Style: Lines
+    # ---- the robot's camera feed (what it sees while reading a gauge) ----
+    - Class: rviz_default_plugins/Image
+      Name: Camera (gauge view)
+      Enabled: true
+      Topic:
+        Value: /camera/image_raw
+        Durability Policy: Volatile
+        Reliability Policy: Best Effort
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Measure
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic:
+        Value: /initialpose
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Value: /goal_pose
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Inspection View
+      Distance: 18
+      Pitch: 1.05
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Yaw: 3.14

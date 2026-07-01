@@ -52,33 +52,32 @@ detection chooses the wrong interface.
 - Wendy CLI ROS tools should query domain `30`, not domain `0`.
 - `wendy run --detach` is preferred for long-running bridge apps.
 
-## Handoff Prompt
+## Scope Boundary
 
-Use this prompt for another agent:
+This folder stays bridge-only. Do not add frontier, Nav2, RTAB-Map, OctoMap, or
+simulation packages here — those belong in a separate app that composes on top of
+the clean domain-30 contract.
 
-```text
-You are continuing work on /home/adyansh/ee-hackathon/apps/go2-ros2-bridge-only.
-This is a WendyOS ROS 2 Jazzy bridge-only app for Unitree Go2. Do not add
-frontier, Nav2, RTAB-Map, OctoMap, or simulation packages to this folder.
-
-Architecture:
-- Raw Go2 DDS is on domain 0.
-- Clean bridge output is on domain 30.
-- Docker context is ./bridge.
-- The app builds Unitree ROS 2 interfaces from unitreerobotics/unitree_ros2.
-- Runtime entrypoint generates CycloneDDS config and starts go2_bridge plus
+Key invariants:
+- Raw Go2 DDS is on domain 0; clean bridge output is on domain 30.
+- Docker context is `./bridge`.
+- The app builds Unitree ROS 2 interfaces from `unitreerobotics/unitree_ros2`.
+- The runtime entrypoint generates CycloneDDS config and starts `go2_bridge` plus
   optional Foxglove.
-- RESTAMP_WITH_ROS_TIME=true is important for downstream TF/Nav2 compatibility.
+- `RESTAMP_WITH_ROS_TIME=true` is important for downstream TF/Nav2 compatibility.
 
-Validate with:
+Validate:
+
+```bash
 wendy json validate apps/go2-ros2-bridge-only
 bash -n apps/go2-ros2-bridge-only/bridge/entrypoint.sh
 python3 -m py_compile <all go2_bridge .py files>
+```
 
-Deploy with:
+Deploy and check:
+
+```bash
 wendy --device <device> run --prefix apps/go2-ros2-bridge-only --yes --detach --debug
-
-Check:
 wendy --device <device> device ros2 topics --domain 30
 wendy --device <device> device ros2 echo /odom --domain 30 --count 1
 ```

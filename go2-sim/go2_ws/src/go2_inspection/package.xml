@@ -4,8 +4,8 @@
   <name>go2_inspection</name>
   <version>0.1.0</version>
   <description>Autonomous facility inspection for the Go2: zone_inspector (viewpoint + 360-degree spin +
-  depth-projected 3D YOLOE detection) + Claude gauge reading + the mission_control service layer + MCP server.</description>
-  <maintainer email="manasreddyarumalla@gmail.com">EE26 team</maintainer>
+  depth-projected 3D YOLOE detection) + LLM gauge reading + the mission_control service layer + MCP server.</description>
+  <maintainer email="manasreddyarumalla@gmail.com">Manas Arumalla</maintainer>
   <license>Apache-2.0</license>
 
   <exec_depend>rclpy</exec_depend>

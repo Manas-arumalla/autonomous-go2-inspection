@@ -22,7 +22,7 @@
 ```
 
 ## The ROS 2 topic/TF contract (every simulator must satisfy this)
-- **Drive in:** `/cmd_vel` `geometry_msgs/Twist` (vx, vy, wz). *(Note: matches our MuJoCo
+- **Drive in:** `/cmd_vel` `geometry_msgs/Twist` (vx, vy, wz). *(Note: matches the MuJoCo
   `Go2Velocity.set_velocity` and the real Go2 `SportClient.Move` — same everywhere.)*
 - **Sensors out:** `/scan` `LaserScan` (or `/points` `PointCloud2` → flattened), `/imu`
   `Imu`, `/odom` `Odometry`, `/camera/image_raw`+`/camera/depth`+`/camera/camera_info`
@@ -34,10 +34,10 @@
 ## Phased roadmap
 
 ### ✅ Stage 0 — foundation decided & documented (done)
-Reference analysis, environment audit, ADRs, this roadmap, progress log. Memory checkpointed.
+Reference analysis, environment audit, ADRs, this roadmap.
 
 ### ▶ Stage 1 — official Go2 + world + SLAM + frontier exploration + autonomous map building
-The current milestone. Build order (each step is a checkpoint):
+The current milestone. Build order (each step is a milestone):
 
 1. **Workspace + deps.** Create `go2_ws` (colcon). `apt install` the Jazzy stack
    (`ros-jazzy-ros-gz`, `slam-toolbox`, `navigation2`, `nav2-bringup`,
@@ -71,28 +71,26 @@ RTAB-Map 3D LiDAR SLAM (ADR-004); depth camera; sensor noise; realistic legged l
 (CHAMP-port or bridge the MuJoCo policy); `robot_localization` EKF (odom+IMU);
 3D→2D `map_projector` (from exploration_go2) if keeping a 3D map for Nav2.
 
-### Stage 3 — perception & inspection (the Wendy goal)
-Object detection (YOLO on the RTX, or Claude vision over HTTP per Go2-Inspector); detection
+### Stage 3 — perception & inspection
+Object detection (YOLO on the RTX, or a hosted vision model over HTTP); detection
 → 3D centroid in `map` → dedup; **change detection** (NEW/MOVED/MISSING/UNCHANGED);
-**inspection report** (annotated PNG + 3D PLY + JSON + PDF via `fpdf2`, Claude-written
+**inspection report** (annotated PNG + 3D PLY + JSON + PDF via `fpdf2`, generated
 recommendations); `watchdog_run`-style auto-export. Info-gain frontier upgrade
 (exploration_go2) and/or TARE + terrain traversability (Go2_planner_suite).
 
-### Stage 3.5 — agentic layer (dimos)
-Integrate **dimos** (agentic OS, Go2-native, MCP + Claude, NL commands) as the **top
-layer**: natural-language missions ("inspect the electrical room") → dimos plans → drives
-the autonomy via the **same ROS 2 contract** (Nav2 `NavigateToPose` goals / exploration
-services / `/cmd_vel`) and reasons over perception. This is the **teach-it-live teammate
-wedge** (cf. `winning-strategy` memory). It sits cleanly *above* SLAM/Nav2/exploration
-precisely because they expose a standard contract — no autonomy changes needed. dimos is
-Python/WebRTC; on hardware it coexists with the ROS 2 stack (bridge NL→Nav2 goals).
+### Stage 3.5 — natural-language mission layer
+A top-layer agent that turns natural-language missions ("inspect the electrical room") into
+plans that drive the autonomy through the **same ROS 2 contract** (Nav2 `NavigateToPose`
+goals / exploration services / `/cmd_vel`) and reasons over perception. It sits cleanly
+*above* SLAM/Nav2/exploration precisely because they expose a standard contract — no autonomy
+changes are needed — and coexists with the ROS 2 stack on hardware (bridging NL to Nav2 goals).
 
 ### Stage 4 — sim-to-real & scale
 Swap the sim provider for the **real Go2** (`unitree_ros2`/DDS, or Wendy `go2-inspection`)
 behind the same contract; optional **Isaac Sim** swap for photorealistic perception;
 multi-robot / fleet; map persistence + relocalization (MOLA `.mm`).
 
-## Cross-cutting principles (the user's "before implementation" checklist)
+## Cross-cutting principles
 - **Extensibility:** one package per concern (`go2_description`, `go2_worlds`, `go2_bringup`,
   `go2_exploration`, later `go2_perception`); the topic contract is the only coupling.
 - **Maintainability:** Jazzy apt binaries over source builds wherever possible; configs in
@@ -102,5 +100,4 @@ multi-robot / fleet; map persistence + relocalization (MOLA `.mm`).
 - **Fidelity:** Gazebo PBR now; Isaac swap available later without touching autonomy.
 - **Ease of development:** `sim.launch.py` (drive + look) and `explore.launch.py` (full
   autonomy) as the two entry points; everything `use_sim_time`.
-- **Documentation/checkpoints:** `PROGRESS-LOG.md` updated at every milestone; ADRs for
-  every significant choice; memory checkpoints for durable facts.
+- **Documentation:** `CHANGELOG.md` updated at every milestone; ADRs for every significant choice.

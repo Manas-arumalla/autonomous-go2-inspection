@@ -303,9 +303,9 @@
           <scale_rate>0.4</scale_rate><rate>45</rate>
           <material>
             <diffuse>1 1 1</diffuse><specular>1 1 1</specular>
-            <pbr><metal><albedo_map>/home/adyansh/go2-inspection/go2-sim/go2_ws/src/go2_worlds/worlds/fire_tex/puff.png</albedo_map></metal></pbr>
+            <pbr><metal><albedo_map>fire_tex/puff.png</albedo_map></metal></pbr>
           </material>
-          <color_range_image>/home/adyansh/go2-inspection/go2-sim/go2_ws/src/go2_worlds/worlds/fire_tex/flamecolors.png</color_range_image>
+          <color_range_image>fire_tex/flamecolors.png</color_range_image>
         </particle_emitter>
         <particle_emitter name="smoke" type="box">
           <pose>0 0 1.2 0 0 0</pose>
@@ -318,9 +318,9 @@
           <scale_rate>1.0</scale_rate><rate>12</rate>
           <material>
             <diffuse>1 1 1</diffuse>
-            <pbr><metal><albedo_map>/home/adyansh/go2-inspection/go2-sim/go2_ws/src/go2_worlds/worlds/fire_tex/puff.png</albedo_map></metal></pbr>
+            <pbr><metal><albedo_map>fire_tex/puff.png</albedo_map></metal></pbr>
           </material>
-          <color_range_image>/home/adyansh/go2-inspection/go2-sim/go2_ws/src/go2_worlds/worlds/fire_tex/smokecolors.png</color_range_image>
+          <color_range_image>fire_tex/smokecolors.png</color_range_image>
         </particle_emitter>
       </link>
     </model>

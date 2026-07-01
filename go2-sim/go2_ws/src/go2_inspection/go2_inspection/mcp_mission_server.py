@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """mcp_mission_server -- a FastMCP (stdio) server that exposes the SIM mission-control ROS2 services as
-Claude CLI tools, so you can drive the Go2 inspection sim in natural language.
+MCP tools, so you can drive the Go2 inspection sim in natural language.
 
 It is a thin bridge: one MCP tool per mission_control_server service (all the custom
 go2_inspection_interfaces/srv/ZoneTask {zone_id} -> {success, message, result_json}). A single rclpy
@@ -11,8 +11,9 @@ not stall the MCP stdio loop.
 SCOPE: SIMULATION ONLY (talks to the sim's mission_control on the default ROS domain). Nothing WendyOS.
 
 Run via run_mcp_sim.sh (which sources ROS + the sim workspace + the sim's DDS env, then runs this server
-with the python3 on PATH, which must have fastmcp). Register with Claude CLI:
-    claude mcp add go2-sim -- "/abs/path/to/go2-sim/go2_ws/src/run_mcp_sim.sh"
+with the python3 on PATH, which must have fastmcp). Register it with your MCP client (stdio) pointing at
+this wrapper script, e.g.:
+    <mcp-client> add go2-sim -- "/abs/path/to/go2-sim/go2_ws/src/run_mcp_sim.sh"
 
 The sim base stack must be running for the tools to do anything:
   - mapping/exploration:  ros2 launch go2_bringup rtabmap_slam.launch.py world:=maze.sdf headless:=false
@@ -182,7 +183,7 @@ def inspect_zone(zone: str, read_gauges: bool = False) -> dict:
     task_id -- the scan runs in the BACKGROUND (~10-15 min). Poll get_status until status.task.status !=
     'running' (then status.task.result holds the objects), or call cancel_task to abort. Afterwards use
     get_zone_objects / get_zone_image to review. Accepts 'zone_3', '3', 'zone 3'. Set read_gauges=true to
-    ALSO have Claude read any detected analog gauges into values (needs ANTHROPIC_API_KEY in the sim env)."""
+    ALSO have the model read any detected analog gauges into values (needs ANTHROPIC_API_KEY in the sim env)."""
     return _call("inspect_zone", zone_id=_norm_zone(zone), read=read_gauges, timeout=30)
 
 
@@ -192,7 +193,7 @@ def run_mission(zones: str = "all", read_gauges: bool = False) -> dict:
     subset), return HOME, build one facility report + map. Returns IMMEDIATELY with a task_id; the mission
     runs in the BACKGROUND (can be ~30-60 min). Poll get_status (status.task.status / .result) or get_report;
     call cancel_task to abort. 'zones'='all' for every zone, or a comma list like 'zone_0,zone_3' (or '0,3').
-    Set read_gauges=true to ALSO Claude-read detected analog gauges into values (needs ANTHROPIC_API_KEY)."""
+    Set read_gauges=true to ALSO model-read detected analog gauges into values (needs ANTHROPIC_API_KEY)."""
     z = zones.strip()
     if z.lower() in ("", "all", "*"):
         zone_id = ""  # mission_control treats '' as 'all candidate zones'
@@ -204,7 +205,7 @@ def run_mission(zones: str = "all", read_gauges: bool = False) -> dict:
 @mcp.tool
 def cancel_task() -> dict:
     """STOP the robot: abort any running navigate/inspect/run_mission (and exploration) and halt motion. Call
-    this when the user says stop/abort/cancel/come back, or to clear a stuck action. Safe to call when idle."""
+    this when the operator says stop/abort/cancel/come back, or to clear a stuck action. Safe to call when idle."""
     return _call("cancel_task", timeout=30)
 
 
@@ -275,7 +276,7 @@ def get_zone_image(zone: str):
 
 def main():
     _ensure_node()
-    mcp.run()  # stdio transport (Claude CLI spawns this)
+    mcp.run()  # stdio transport (the MCP client spawns this)
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='EE26 team',
+    maintainer='Manas Arumalla',
     maintainer_email='manasreddyarumalla@gmail.com',
     description='Automatic topological zone (room) segmentation of the occupancy grid for the Go2 sweep.',
     license='Apache-2.0',

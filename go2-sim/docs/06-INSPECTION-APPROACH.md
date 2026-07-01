@@ -12,7 +12,7 @@ detected + localized to **7 cm**). But the viewpoint-to-wall distance **scales w
 - **Detection** ("there is a dial on that wall") works at range, wide-FOV, even while moving.
 - **Reading** ("the needle is at 4.2 bar") needs a **close, high-res, sharp, fronto-parallel** view.
 
-For our 640×480 camera (fx ≈ 381 px), a 0.26 m gauge needs ~120 px across to read → a **hard max readable
+For the 640×480 camera (fx ≈ 381 px), a 0.26 m gauge needs ~120 px across to read → a **hard max readable
 standoff of ~0.8 m** (`d = fx·size/px`). In a large facility room the spin viewpoint is several metres from
 a wall gauge → ~25 px blob → **unreadable, however good the spin is.** No single survey pattern can both
 *cover* a big room and *read* every gauge.
@@ -20,15 +20,15 @@ a wall gauge → ~25 px blob → **unreadable, however good the spin is.** No si
 ## Decision
 
 Adopt **detect-then-approach**, the pattern real inspection robots (Spot Orbit / Spot CAM, ANYbotics
-ANYmal) use — *navigate close to each asset and frame it*, rather than reading from a wide spin — and which
-our **depth-3D localization already enables** (we know each gauge's world xy, so we can drive to it):
+ANYmal) use — *navigate close to each asset and frame it*, rather than reading from a wide spin — which
+the **depth-3D localization already enables** (each gauge's world xy is known, so the robot can drive to it):
 
 1. **Survey** (unchanged) — viewpoints + 360° spin DETECT + 3D-localize every gauge at range.
 2. **Approach + read** (new `READ_APPROACH` phase) — for each localized gauge, plan a **close,
    fronto-parallel, reachable standoff pose**, Nav2 to it, stop (no motion blur), capture a burst, keep the
-   sharpest frame, and save a high-res **read crop**; Claude reads *that* crop.
+   sharpest frame, and save a high-res **read crop**; the model reads *that* crop.
 
-The standoff **distance is derived from a pixel budget**, so reading is **scale-invariant** — bigger room
+The standoff **distance is derived from a pixel budget**, so reading is **scale-invariant** — a bigger room
 just means the detection happens farther away, but the read pose is always pulled back to the readable
 distance.
 
@@ -42,7 +42,7 @@ distance.
 - `plan_reading_pose(asset_xy, normal, d, is_free, arc_deg, step_deg)` — try the wall-normal standoff, then
   **rotate the standoff direction around the asset within ±arc_deg** until a free pose is found → degrades
   to the nearest reachable viewing angle instead of stranding (also addresses the nav-reachability failures
-  we saw on hard-to-reach viewpoints).
+  observed on hard-to-reach viewpoints).
 - `make_is_free(plausible_mask, …)` — reachability test from the dilated obstacle mask (free + clearance).
 - `sharpness(gray)` — variance-of-Laplacian; pick the sharpest burst frame so blur never reaches the reader.
 
@@ -52,6 +52,10 @@ unchanged): after the last viewpoint spin, build a reading pose per detected gau
 failure) → `READ_CAPTURE` (settle → burst → sharpest → re-detect for a tight crop, else centred fallback →
 save `read_crops/<id>.png`). Each object gains `read_crop` + `read_standoff` + `read_dist`.
 `gauge_inspector` **prefers `read_crop`** over the at-range spin crop.
+
+The reader itself is the **Anthropic API** — the read crop is sent to the model, which returns the gauge
+type, unit, value, range, and risk. Using a hosted vision model keeps the reading step off the on-device
+GPU budget and gives high accuracy on analog dials without a locally trained model.
 
 Tunables: `read_target_px` (120), `read_asset_size` (0.26 m), `read_dmin`/`read_dmax` (0.5/1.2 m),
 `read_arc_deg` (60°), `read_burst` (5).
@@ -65,8 +69,8 @@ Tunables: `read_target_px` (120), `read_asset_size` (0.26 m), `read_dmin`/`read_
 ## Real-time / on-device
 
 Detection runs online on the Orin GPU (YOLOE 20+ FPS) during the survey; planning is millisecond geometry;
-the heavy reader (Claude/VLM) runs **per asset** (a handful per room), off the locomotion loop. The robot
-stops only briefly at each gauge to read — real-time on-device.
+the heavy reader (the Anthropic API) runs **per asset** (a handful per room), off the locomotion loop. The
+robot stops only briefly at each gauge to read — real-time on-device.
 
 ## Next-best-view re-approach (implemented)
 
@@ -108,16 +112,16 @@ fronto-parallel, stationary pose (the same model on far better data). If every N
 if any view re-detects it, `read_confirmed = True`. `read_drop_unconfirmed` (default **OFF**) then drops the
 refuted ones. Default-off is deliberate, and a live run proved why: a **real** zone_0 gauge once read
 `read_px = 0` because it fell **below the camera's vertical FOV** at the close standoff (low gauge z≈0.30 m,
-higher pitched camera) — so dropping on `read_px==0` carries a false-negative risk; we record confirmation
-honestly and only drop when the operator opts in. It correctly refuted an actual survey FP at (5.54, 0.88)
+higher pitched camera) — so dropping on `read_px==0` carries a false-negative risk; confirmation is recorded
+honestly and dropping is left opt-in. It correctly refuted an actual survey false positive at (5.54, 0.88)
 in another run.
 
 ## Full autonomous mission (wired)
 
 `inspection_mission` forwards `read_approach` to `zone_inspector`, so the facility mission runs the whole
 detect-then-approach pipeline per zone (the always-on reach-check applies automatically). A live end-to-end
-maze run: HOME → zone_0 (1 gauge) → zone_1 (1 gauge, read by an agent's vision as **Temperature ≈ 75 °C**,
-no API key) → zone_2/zone_3 (nav-unreachable, **skipped gracefully**) → facility report. Ground truth
+maze run: HOME → zone_0 (1 gauge) → zone_1 (1 gauge, read as **Temperature ≈ 75 °C**) →
+zone_2/zone_3 (nav-unreachable, **skipped gracefully**) → facility report. Ground truth
 (benchmark vs maze.sdf): **precision 1.0, 9.8 cm**, recall 0.5 (the two unreachable zones).
 
 ## Future

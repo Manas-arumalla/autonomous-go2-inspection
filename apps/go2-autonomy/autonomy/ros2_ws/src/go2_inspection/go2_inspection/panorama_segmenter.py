@@ -18,7 +18,7 @@ Pipeline:
      distinct gauges. -> one detection per gauge (spatial dedup -- each gauge once).
   4. For each gauge, take the actual CROP from the SINGLE source frame where it sits centred (nearest
      captured lateral position) -- un-sheared, full-resolution. The strip panorama distorts the needle
-     (the value!), so it is used ONLY for detection + spatial dedup, never for the crop Claude reads.
+     (the value!), so it is used ONLY for detection + spatial dedup, never for the crop the model reads.
 
 REAL-TIME / ON-DEVICE: FastSAM-s (~23 MB) runs in ONE post-sweep pass -- it is OFF the locomotion
 control loop, so it never blocks the robot. A few hundred ms on the Jetson Orin Nano (sm_87, CUDA).

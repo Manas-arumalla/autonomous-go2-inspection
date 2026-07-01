@@ -13,7 +13,7 @@ working nodes. The server only holds: the frontier child handle, a robot-busy lo
 time), a cached /map (status/coverage), and the last result. A MultiThreadedExecutor +
 ReentrantCallbackGroup keep /get_status and /stop_exploration responsive while a long inspect runs.
 
-WendyOS PORT: every service is std_srvs/Trigger (the wendy agent's ros2 can't resolve our custom
+WendyOS PORT: every service is std_srvs/Trigger (the wendy agent's ros2 can't resolve the custom
 ZoneTask type, which lives only inside the container). zone_id/read move to node PARAMS ('zone','read',
 set via `ros2 param set /mission_control zone zone_0`); the structured result is returned in Trigger's
 `message` as "<text> :: <json>". zone-less services ignore the params.
@@ -39,7 +39,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
 from nav_msgs.msg import OccupancyGrid
 # WendyOS port: services use the STANDARD std_srvs/Trigger (the wendy agent's ros2 can resolve it; it CANNOT
-# resolve our custom go2_inspection_interfaces/ZoneTask, which only exists inside the container). The zone_id
+# resolve the custom go2_inspection_interfaces/ZoneTask, which only exists inside the container). The zone_id
 # + read inputs move to node PARAMETERS (set via `ros2 param set`), and the structured payload is returned
 # in Trigger's `message` field (human text + JSON). zone-less services ignore the params.
 from std_srvs.srv import Trigger

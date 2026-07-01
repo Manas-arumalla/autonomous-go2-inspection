@@ -5,7 +5,7 @@
   <version>0.1.0</version>
   <description>Autonomous gauge inspection for the Go2: zone_sweeper (nav + strafe + panorama), and later
   the FastSAM panorama segmenter + the MCP gauge server.</description>
-  <maintainer email="manasreddyarumalla@gmail.com">EE26 team</maintainer>
+  <maintainer email="manasreddyarumalla@gmail.com">Manas Arumalla</maintainer>
   <license>Apache-2.0</license>
 
   <exec_depend>rclpy</exec_depend>

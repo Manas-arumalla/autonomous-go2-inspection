@@ -1,5 +1,5 @@
 # GENERIC 1280x720 USB-webcam intrinsics (~70 deg HFOV) for the EXTERNAL RGB camera.
-# APPROXIMATE -- good enough for the inspection panorama to stitch + the segmenter/Claude to read, but
+# APPROXIMATE -- good enough for the inspection panorama to stitch + the segmenter/model to read, but
 # RECALIBRATE for accurate gauge sizing:  ros2 run camera_calibration cameracalibrator ... then point
 # CAMERA_INFO_URL (or real_bringup's camera_info_url) at the resulting file.
 # fx=fy=914 for 1280px @ ~70deg: fx = (1280/2)/tan(35deg) ~= 914 ; cx,cy = image centre.

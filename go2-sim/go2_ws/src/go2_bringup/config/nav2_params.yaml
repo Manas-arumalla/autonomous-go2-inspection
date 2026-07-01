@@ -37,8 +37,8 @@ controller_server:
                                  # enforcing one made MPPI spin-in-place at the goal (the "circling").
       stateful: true
     FollowPath:
-      # DWB — the SIMPLE, PROVEN local planner behind our confirmed-perfect 2D facility exploration
-      # (reverted from MPPI/RPP per user: keep it simple). Limits match the Go2 trot (vx<=0.26,
+      # DWB — the simple, proven local planner behind the 2D facility exploration
+      # (reverted from MPPI/RPP to keep the controller simple). Limits match the Go2 trot (vx<=0.26,
       # wz<=0.5). vtheta_samples raised to 40 so it always has a valid in-place turn (no freeze).
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: true

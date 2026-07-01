@@ -4,7 +4,7 @@
 Each gauge is a circular dial (270 deg sweep, 225deg -> -45deg clockwise) with major/minor ticks, numeric
 labels, a type+unit caption, a red danger arc near the top of the range, and a red needle at a KNOWN
 reading. The known reading/type/unit/range are written to gauges_groundtruth.json so we can later score
-Claude's readings. Output: <worlds>/gauge_tex/gauge_NN.png  +  gauge_tex/gauges_groundtruth.json
+the model's readings. Output: <worlds>/gauge_tex/gauge_NN.png  +  gauge_tex/gauges_groundtruth.json
 
   python3 gen_gauges.py [output_dir]   (default: ../worlds/gauge_tex relative to this script)
 """

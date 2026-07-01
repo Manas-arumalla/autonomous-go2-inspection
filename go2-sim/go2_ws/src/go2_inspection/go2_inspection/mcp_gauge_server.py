@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """mcp_gauge_server -- Phase 4 (brief-faithful transport): a FastMCP server that yields the segmented
-gauge crops to an MCP client (Claude Desktop / Claude Code), which reads them and writes the report.
+gauge crops to an MCP client, which reads them and writes the report.
 
 This is the "MCP server yielding images" path the challenge brief asks for. The robust, scriptable
 ON-DEVICE path is gauge_inspector.py (direct Anthropic API); both use the SAME reasoning-first reading
-instructions (kept in sync below). Run it as an MCP server and point Claude Desktop/Code at it:
+instructions (kept in sync below). Run it as a generic MCP stdio server and register it with your MCP client:
 
-    GAUGES_ROOT=~/gauges  ~/gauge_venv/bin/python mcp_gauge_server.py          # stdio (Claude Desktop)
-    # claude_desktop_config.json -> mcpServers: { "go2-gauges": { "command": ".../python",
+    GAUGES_ROOT=~/gauges  ~/gauge_venv/bin/python mcp_gauge_server.py          # stdio
+    # your MCP client config -> mcpServers: { "go2-gauges": { "command": ".../python",
     #   "args": [".../mcp_gauge_server.py"], "env": {"GAUGES_ROOT": "/home/.../gauges"} } }
 
 Tools:
@@ -16,7 +16,7 @@ Tools:
   get_gauge_image(zone, gauge_id)    -> one crop (Image)            (per-gauge fallback)
   save_inspection_report(zone, rows) -> writes inspection_report.csv from the model's readings
 
-MCP-image-bug mitigation (CP30 research: image RETURN is flaky in Desktop/Code): every crop is also
+MCP-image-bug mitigation: every crop is also
 given by absolute FILE PATH in text, and get_zone_gauge_paths() returns paths only -- so the client can
 fall back to reading the files directly if inline images fail. Crops are small PNGs already.
 """

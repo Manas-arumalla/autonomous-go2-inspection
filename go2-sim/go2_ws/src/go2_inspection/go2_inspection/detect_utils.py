@@ -71,7 +71,7 @@ _CYAN = (206, 194, 54)  # BGR; analog gauges
 
 
 def is_gauge(name):
-    """True if a detected class is an analog gauge/dial — the crops the gauge-reading layer (Claude) reads."""
+    """True if a detected class is an analog gauge/dial — the crops the gauge-reading layer (the model) reads."""
     n = (name or "").lower()
     return "gauge" in n or "dial" in n
 

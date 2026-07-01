@@ -76,7 +76,7 @@ if [ "${MODE}" = "inspection" ]; then
     fi
     echo ">>> inspection map: ${MAP_YAML}  (rtabmap localizes off ${RTABMAP_DB:-/maps/rtabmap.db})"
 fi
-[ -z "${ANTHROPIC_API_KEY:-}" ] && echo ">>> WARN: ANTHROPIC_API_KEY unset -- on-device Claude gauge READING will be SKIPPED (crops + segmentation still run; read them off-device via /get_zone_image)."
+[ -z "${ANTHROPIC_API_KEY:-}" ] && echo ">>> WARN: ANTHROPIC_API_KEY unset -- on-device LLM gauge READING will be SKIPPED (crops + segmentation still run; read them off-device via /get_zone_image)."
 
 PIDS=()
 shutdown() { for p in "${PIDS[@]:-}"; do kill "$p" 2>/dev/null || true; done; wait || true; }

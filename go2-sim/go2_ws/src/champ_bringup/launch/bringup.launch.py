@@ -258,7 +258,7 @@ def generate_launch_description():
             # description_ld removed (EE26): go2_champ.launch.py already runs robot_state_publisher;
             # a second RSP here would double-publish robot_description + TF.
             quadruped_controller_node,
-            # EE26: state estimation re-enabled — leg+IMU odometry (no gz ground-truth = no cheat),
+            # state estimation re-enabled — leg+IMU odometry (no gz ground-truth),
             # gives /odom + odom->base_footprint->base_link TF that SLAM/Nav2 consume.
             state_estimator_node,
             base_to_footprint_ekf,

@@ -348,7 +348,7 @@ class ZoneSweeper(Node):
                   open(os.path.join(d, "panorama_meta.json"), "w"), indent=2)
         # Save the individual source frames + an index. Phase 3 detects each gauge in the (strip-stitched)
         # panorama for dedup + lateral position, then crops it from its SINGLE best-centred frame here --
-        # un-sheared, full-resolution -- which is what Claude actually reads. ppm/lmin/cx map a panorama
+        # un-sheared, full-resolution -- which is what the model actually reads. ppm/lmin/cx map a panorama
         # column -> a lateral position -> the nearest frame, where the gauge sits near cx.
         fd = os.path.join(d, "frames"); os.makedirs(fd, exist_ok=True)
         index = []

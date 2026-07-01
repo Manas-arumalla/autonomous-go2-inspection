@@ -31,7 +31,7 @@ def _setup(context, *a, **k):
     world_path = os.path.join(worlds, "worlds", world)
     xacro_file = os.path.join(desc, "xacro", "robot_gz.xacro")
     # process xacro via subprocess (file as a single argv element) — the workspace path
-    # contains a space ("EE26 Hackathon") which breaks the Command substitution's shlex split.
+    # contains a space, which breaks the Command substitution's shlex split.
     import subprocess
     _proc = subprocess.run(["xacro", xacro_file], capture_output=True, text=True)
     robot_description = _proc.stdout

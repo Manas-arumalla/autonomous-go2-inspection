@@ -5,7 +5,7 @@ facility.sdf is NOT modified. Gauges are textured (emissive, so they're readable
 thin panels at camera height, spaced so the robot can strafe past them and build a panorama.
 
 GZ TEXTURE-PATH GOTCHA: gz-sim cannot resolve a texture path that resolves through a directory containing
-a SPACE (our workspace is ".../EE26 Hackathon/..."), and RGBA PNGs get misread as transparent. So we
+a SPACE (the workspace path contains a space), and RGBA PNGs get misread as transparent. So we
 (1) flatten textures to RGB (done in gen_gauges.py) and (2) expose them at a NO-SPACE symlink in $HOME
 and reference that absolute path. Re-run this script on each machine (like gen_facility.py) to refresh the
 symlink + paths.

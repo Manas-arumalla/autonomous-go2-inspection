@@ -10,10 +10,10 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='EE26 team',
+    maintainer='Manas Arumalla',
     maintainer_email='manasreddyarumalla@gmail.com',
     description='Go2 autonomous facility inspection: viewpoint+spin YOLOE engine (zone_inspector) '
-                '+ map-driven wall-follower + Claude gauge reading + ROS service layer + MCP.',
+                '+ map-driven wall-follower + LLM gauge reading + ROS service layer + MCP.',
     license='Apache-2.0',
     entry_points={'console_scripts': [
         # --- inspection engine (converged from -main; ADR-016) ---
@@ -24,5 +24,7 @@ setup(
         'mission_control_server = go2_inspection.mission_control_server:main',
         # --- benchmarking: score a run vs world ground truth (ADR-016 M7b) ---
         'benchmark = go2_inspection.benchmark:_cli',
+        # --- visualization: publish detected gauges as RViz markers (ADR-018 demo viz) ---
+        'inspection_markers = go2_inspection.inspection_markers:main',
     ]},
 )

@@ -12,9 +12,9 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='EE26 team',
+    maintainer='Manas Arumalla',
     maintainer_email='manasreddyarumalla@gmail.com',
-    description='Go2 inspection perception: RGB+LiDAR colorization (and later SAM3/Claude reports).',
+    description='Go2 inspection perception: RGB+LiDAR colorization (and later SAM3/LLM reports).',
     license='Apache-2.0',
     entry_points={
         'console_scripts': [

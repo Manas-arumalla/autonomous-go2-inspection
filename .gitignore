@@ -42,3 +42,10 @@ CLAUDE.md
 .~lock.*#
 *-ORIGINAL.pptx
 .DS_Store
+
+# --- generated debug artifacts (tf2 view_frames, etc.) ---
+frames_*.gv
+frames_*.pdf
+
+# stray root-level duplicate clone (the real one is under apps/)
+/go2-ros2-bridge-only/

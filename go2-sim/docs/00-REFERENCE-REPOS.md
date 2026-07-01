@@ -1,11 +1,11 @@
 # Reference-repo analysis (Go2 SLAM / exploration / inspection)
 
-Deep analysis of the four repos we're using as references. **Cross-cutting truth:** all
-four are ROS 2 based, but **none run on our stack** (Ubuntu 24.04 / ROS 2 **Jazzy** /
+Analysis of the four repos I used as references. **Cross-cutting truth:** all
+four are ROS 2 based, but **none run on this stack** (Ubuntu 24.04 / ROS 2 **Jazzy** /
 Gazebo **Harmonic**) — they're Isaac, Gazebo **Classic**, or real-hardware, on Foxy/
-Humble/Kilted. The good news: their **autonomy logic is sim-agnostic** — it depends only
+Humble/Kilted. The upside: their **autonomy logic is sim-agnostic** — it depends only
 on standard ROS 2 interfaces (`/scan` or `PointCloud2`, `/odom`, TF, `/map`
-`OccupancyGrid`, Nav2 actions), so we port the *logic*, not the *plumbing*.
+`OccupancyGrid`, Nav2 actions), so I port the *logic*, not the *plumbing*.
 
 | Repo | Sim / target | Distro | SLAM | Exploration | Reuse value |
 |---|---|---|---|---|---|
@@ -27,15 +27,15 @@ on standard ROS 2 interfaces (`/scan` or `PointCloud2`, `/odom`, TF, `/map`
   (no info-gain). **Depends only on `/map` + Nav2 action + TF → portable to any stack.**
 - **Nav2:** NavFn planner + DWB controller, **costmaps fed by a PointCloud2 VoxelLayer**
   (`config/nav2_params_rtabmap.yaml`) — a working quadruped footprint/tuning to start from.
-- **Inspection (future phases):** SAM-3 over **HTTP** (periodic capture → remote segmenter
+- **Inspection (later phases):** SAM-3 over **HTTP** (periodic capture → remote segmenter
   → 3D centroid in `map` → dedup); **change detection** (NN match by label →
   NEW/MOVED/MISSING/UNCHANGED); **report** = annotated 2D PNG + 3D PLY + JSON + **PDF
-  (`fpdf2`)**, with a Claude-recommendations variant (`inspection_report_llm.py`).
+  (`fpdf2`)**, with an LLM-recommendations variant (`inspection_report_llm.py`).
 - **Orchestration:** `scripts/watchdog_run.py` — run mission, trap Ctrl-C, auto-export all
   artifacts to a timestamped folder. Adopt this demo UX.
 - **Gotchas:** Go2 timestamps unreliable → a family of "restamper" nodes rewrite to host
   time before SLAM/sync. README ≠ code (inspection not wired into launch; fpdf2 not
-  reportlab). Trust the code.
+  reportlab). Trust the code, not the README.
 
 ## exploration_go2 (gcairone) — ⭐ the exploration brain to port
 - **MIT-intended (no LICENSE file).** Foxy + Gazebo Classic; **sim robot is a TurtleBot3,
@@ -45,11 +45,11 @@ on standard ROS 2 interfaces (`/scan` or `PointCloud2`, `/odom`, TF, `/map`
   (frontier detect → **DBSCAN cluster** → 4 scoring metrics: euclidean, **true path-length
   via `ComputePathToPose`**, cluster size, **pseudo info-gain**) + `goal_manager.py` (FSM
   with **dynamic goal preemption** when a better frontier appears) + `dbscan.py`. This is
-  richer than Go2-Inspector's greedy explorer — our upgrade path.
+  richer than Go2-Inspector's greedy explorer — the upgrade path.
 - **`src/map_projector_bayesian.cpp`** — 3D PointCloud2 → 2D **log-odds OccupancyGrid**
-  (`/projected_map`); needed when we move to a 3D LiDAR map but want 2D Nav2/frontiers.
+  (`/projected_map`); needed for a 3D LiDAR map with 2D Nav2/frontiers.
 - **Gotcha:** Python frontier scan is O(H·W) loops + blocking action calls in a timer →
-  slow on big maps; vectorize/C++ before trusting live.
+  slow on big maps; vectorize/C++ before running live.
 
 ## Go2_planner_suite (Quadruped-dyn-insp) — advanced-nav parts bin (later)
 - **MIT (mixed; CMU components BSD).** Humble + Gazebo Classic + **CHAMP**. The **CMU
@@ -60,9 +60,9 @@ on standard ROS 2 interfaces (`/scan` or `PointCloud2`, `/odom`, TF, `/map`
   **MOLA LO** (CPU SLAM) / **DLIO** (only real CUDA). Web mission UI (named waypoints →
   `/goal_point`).
 - **Gotchas:** README aspirational ("CUDA FAR planner" — no CUDA in code; "FastAPI" — it's
-  Go/Gin); clone incomplete (empty/missing workspaces, hardcoded `/home/yasiru/` paths).
+  Go/Gin); clone incomplete (empty/missing workspaces, hardcoded absolute paths).
   Parts bin, not deployable. **Prefer MOLA (CPU) to dodge CUDA.** Lift TARE + terrain +
-  local-planner params when we want richer exploration/traversability than a 2D frontier node.
+  local-planner params for richer exploration/traversability than a 2D frontier node.
 
 ## isaac-go2-ros2 (Zhefan-Xu) — topic/TF contract reference only
 - **No license** (legal blocker for code reuse). Isaac Sim 4.5 + Humble; RL locomotion
@@ -72,13 +72,13 @@ on standard ROS 2 interfaces (`/scan` or `PointCloud2`, `/odom`, TF, `/map`
   `Image`+`CameraInfo`, TF `map→base_link→{lidar,cam}`; sensor rates decoupled from physics.
   Warehouse/obstacle worlds are the "realistic inspection world" flavor to replicate as SDF.
 - **Lesson:** it deliberately stops at the sensor/`cmd_vel` boundary and delegates SLAM+nav
-  to external ROS 2 packages — validating our **sim-agnostic** decomposition.
+  to external ROS 2 packages — validating the **sim-agnostic** decomposition I chose.
 
-## What we lift, concretely
+## What I lift, concretely
 1. **Frontier node:** start with Go2-Inspector's `frontier_explorer.cpp` (MIT, drop-in,
    needs only `/map` + Nav2). Upgrade to exploration_go2's info-gain scoring + preemption FSM.
 2. **Nav2 + costmap config:** Go2-Inspector's quadruped-tuned params as a starting point.
-3. **3D→2D projector:** exploration_go2's `map_projector_bayesian.cpp` when we add 3D SLAM.
+3. **3D→2D projector:** exploration_go2's `map_projector_bayesian.cpp` for 3D SLAM.
 4. **Inspection + report + watchdog:** Go2-Inspector's change-detection + `fpdf2` report +
    `watchdog_run.py` (Phase 3).
 5. **Advanced exploration/traversability:** TARE + terrain_analysis (Go2-tuned) from

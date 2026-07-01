@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """yoloe_segmenter -- Phase 3 (object segmentation) for the autonomous inspection.
 
-Runs the team's VERIFIED open-vocabulary segmentation (YOLOE-seg + set_classes) on EACH per-wall
+Runs the VERIFIED open-vocabulary segmentation (YOLOE-seg + set_classes) on EACH per-wall
 panorama produced by zone_wall_follower, and crops every detected object. It does DETECTION + CROP ONLY:
-the actual reading (gauge value, unit, risk) happens downstream on the crops we send out (the Claude
+the actual reading (gauge value, unit, risk) happens downstream on the crops we send out (the LLM
 reader / report side), so no needle-angle or OCR here -- this stays a lean perception pass.
 
 INPUT  (from zone_wall_follower):  ~/gauges/<zone>/panorama_00.png, panorama_01.png, ... (+ panoramas.json)
@@ -11,10 +11,10 @@ INPUT  (from zone_wall_follower):  ~/gauges/<zone>/panorama_00.png, panorama_01.
 OUTPUT: ~/gauges/<zone>/gauges/<class>_<seg>_<i>.png   one clean crop per detected object
         ~/gauges/<zone>/detections.json                every detection (class, conf, bbox, panorama)
         ~/gauges/<zone>/gauges.json                    gauge-type crops in the schema gauge_inspector
-                                                        (Claude) + get_zone_gauges already consume
+                                                        (the model) + get_zone_gauges already consume
         ~/gauges/<zone>/gauges_contact_sheet.png       montage for get_zone_image
 
-Model + prompts are the user's physically-verified script, refactored from a live webcam loop into this
+Model + prompts are the physically-verified script, refactored from a live webcam loop into this
 batch-over-panoramas pass. It detects nothing in Gazebo (no real instruments there), so it DEGRADES
 GRACEFULLY: if ultralytics/YOLOE or the weights are unavailable, it writes an empty (available:false)
 result and exits 0 -- the mission keeps going; on the real Go2 (weights present, real gauges) it produces
@@ -158,7 +158,7 @@ def process_zone(zone_dir, weights="yoloe-26s-seg.pt", conf=0.10, device=""):
             print(f"yoloe_segmenter: detection failed on {os.path.basename(pano_path)}: {e}")
     json.dump({"zone": zone, "available": True, "n_detections": len(all_dets), "detections": all_dets},
               open(os.path.join(zone_dir, "detections.json"), "w"), indent=2)
-    # gauge-type crops in the schema the Claude reader + get_zone_gauges already use (reading happens there).
+    # gauge-type crops in the schema the LLM reader + get_zone_gauges already use (reading happens there).
     # 'lateral' gives a stable left->right order across walls for the report/scoring side.
     gauges = [{"id": d["id"], "zone": zone, "type": "gauge", "file": d["file"],
                "segment": d["segment"], "lateral": d["lateral"]}

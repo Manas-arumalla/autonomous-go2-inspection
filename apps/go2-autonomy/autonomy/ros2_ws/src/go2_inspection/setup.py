@@ -10,7 +10,7 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='EE26 team',
+    maintainer='Manas Arumalla',
     maintainer_email='manasreddyarumalla@gmail.com',
     description='Go2 autonomous gauge inspection: zone sweeper + panorama (+ later FastSAM + MCP).',
     license='Apache-2.0',
