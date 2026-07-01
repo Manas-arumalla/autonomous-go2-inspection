@@ -10,7 +10,7 @@ inspection report — fully autonomously, from its own sensors, with no ground-t
 
 Built on **ROS 2 Jazzy + Gazebo Harmonic** with a **sim-agnostic autonomy stack** (RTAB-Map SLAM · Nav2 ·
 frontier exploration · open-vocab detection). The same ROS 2 node graph that runs in simulation deploys
-unchanged on the real Go2 (`sim == real`), so the simulator is a swappable *provider*, not the product.
+unchanged on the real Go2 (sim-to-real), so the simulator is a swappable *provider*, not the product.
 
 > One command brings up the whole thing: **`./go2-sim/run_demo.sh`** → Gazebo + RViz + SLAM + Nav2 + the
 > service layer, ready for a mission. Gazebo shows the physical scene; RViz shows the robot's map,
@@ -84,7 +84,7 @@ in SLAM mode and saving it (see `go2-sim/RUN-SIM.md`, mapping mode) before runni
 
 ---
 
-## Architecture — `sim == real`
+## Architecture — sim-to-real
 
 The autonomy stack binds only to the standard ROS 2 topic contract (`/cmd_vel`, `/odom`, `/scan`,
 `/camera`, TF, `/clock`). Swap the *provider* (Gazebo ⇄ Unitree Go2) and everything above the bus is
@@ -99,7 +99,7 @@ flowchart TD
     classDef node fill:#15263b,stroke:#3f5d80,stroke-width:1.5px,color:#eaf2fb
     classDef app  fill:#15263b,stroke:#F5A623,stroke-width:1.5px,color:#eaf2fb
 
-    subgraph PROVIDER["PROVIDER — swappable (sim == real)"]
+    subgraph PROVIDER["PROVIDER — swappable (sim-to-real)"]
         direction LR
         GZ["Gazebo Harmonic<br/>Go2, L1 LiDAR, depth cam, IMU"]:::sim
         GO2["Unitree Go2 EDU<br/>Jetson Orin (optional)"]:::real

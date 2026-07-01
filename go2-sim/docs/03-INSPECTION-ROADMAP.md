@@ -54,7 +54,7 @@ The per-zone pipeline (2→3→4) is proven end-to-end on `facility_gauges.sdf`.
 
 ## 3. Future phases (planned)
 
-> Each phase keeps the **sim==real** rule: identical ROS topic contract, no sim-only shortcuts, so what
+> Each phase keeps the **sim-to-real** rule: identical ROS topic contract, no sim-only shortcuts, so what
 > works in sim works on the Go2/Orin.
 
 ### ▢ Phase 5 — Autonomous mission orchestration (one command, end-to-end)
